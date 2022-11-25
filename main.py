@@ -3,7 +3,7 @@ import os
 
 from Functions import *
 
-directory = 'dataset_1/A/A-kappa'
+directory = 'C:\Users\merts\Desktop\Bar Approx\dataset_1\A\A-kappa'
 
 #Lists for distances collected from all the samples in the loop
 jpeg_dict = {"bar_length" : [], "reliability": {}, "distances": {}}
