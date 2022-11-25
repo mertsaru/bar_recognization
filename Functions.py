@@ -343,13 +343,14 @@ def line_elimenator_v2(lines):
     return new_lines
  
 # Line drawer
-def show_line(img_cut, lines):
+def show_line(img, lines):
     '''!Improvement
     Make the function dont change the original img_cut but creates a copy and shows that
     '''
+    img_colored = img
     for line in lines:
-        img_cut[line,:] = 255
-    img_viz = Image.fromarray(img_cut)
+        img_colored[line,:] = 255
+    img_viz = Image.fromarray(img_colored)
     img_viz.show()
 
 # Check which line is reliable to be the middle point
@@ -435,6 +436,39 @@ def bar_reliability(img_mx, lines, error_function ='linear', max_dist =14):
             validity_dict[line_name[i]] = reliability        
     
     return validity_dict
+
+def bar_reliability_nodict(img_mx, lines, error_function = 'linear', max_dist =14):
+    row_vals = img_mx.mean(axis=1)
+    col_len = len(row_vals)
+    
+    # Finding the distance value
+    if (lines[0] < max_dist) or (lines[-1] +max_dist > col_len -1): #if line ±n passes the border.
+        distance = min(lines[0], col_len - lines[-1] -1)
+    else:
+        distance = max_dist
+
+    validity_list = []
+    # Finding all the reliability
+    for i in range(len(lines)):
+        brightness = row_vals[lines[i]]
+        # Finding individual error
+        err = 0
+        for dist in range(1,distance+1):
+            new_err = abs(row_vals[lines[i] -dist] - row_vals[lines[i] +dist])
+            err += new_err
+        
+        mean_error = err /(brightness*distance) 
+        
+        # Turn error into reliability
+        if (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
+            reliability = 1-erf(mean_error)
+        elif (error_function == 'linear'):
+            reliability = 1- mean_error
+        
+        # Add reliability to the list
+        validity_list.append(reliability)
+    
+    return validity_list
 
 # Returns distances of the bars
 def line_dist(lines):
