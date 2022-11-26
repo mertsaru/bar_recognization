@@ -6,7 +6,7 @@ from Functions import *
 directory = 'dataset_1'
 jpeg_dict = {"bar_length" : [], "reliability": {}, "distances": {}, "distances %":{}}
 count = 0
-
+count_all = 0
 # inside Main directory
 for AGM in os.listdir(directory):
     dirAGM = os.path.join(directory, AGM)
@@ -17,49 +17,50 @@ for AGM in os.listdir(directory):
 
         # inside Kappa, Lambda directiories, the files
         for file in os.listdir(dirKL):
-            '''Runs the whole jpg files in folder'''
             file_dir = os.path.join(dirKL, file)
+            
+            #Runs the whole jpg files in folder
             if file_dir.endswith('.jpg'):
-                
+                count_all +=1 # number of jpeg files we are running
+
                 # Read the image
                 img = Image.open(file_dir)
 
-                # Turn image into [wxh] matrix form with alteration
+                # Turn image into [wxh] matrix form with alterating the density
                 img_mx = to_matrix(img)
 
                 # Cuts the SPEP part
                 edges = find_edge(img_mx)
                 img_cut = img_mx[edges[0]:edges[1], edges[2]:edges[3]]
 
-                # Original Cut, for reliability use
-                #img_grayscale = img.convert('L')
-                #img_orj = np.array(img_grayscale)
-                #img_orj_cut = img_orj[edges[0]:edges[1], edges[2]:edges[3]]
 
                 # Finds spikes
                 lines_sharp, lines_smooth, lines_dent= [], [], []
                 #lines_sharp = find_bars_sharp_v3(img_cut)
                 lines_smooth = find_bars_smooth(img_cut)
                 lines_dent = find_bars_dent(img_cut)
-                #print(f"line sharp :{lines_sharp}\n line smooth :{lines_smooth} \n line dent :{lines_dent}")
 
                 # Line Organizer
                 ## Combine findings
                 lines = lines_sharp + lines_smooth + lines_dent 
                 lines.sort()
                 lines = list(dict.fromkeys(lines))
-                #print(f'combined lines: {lines}\n')
 
                 ## Eliminate close lines
                 new_lines = line_elimenator_v2(lines)
-                #print(f'refined lines :  {new_lines}')
 
                 # Eliminate unfit data
                 '''Improvement!
                 We are only taking the files which we found 5 lines on it.
                 Need a better line validator'''
                 '''Broken Code: reliability
-                reliability = bar_reliability(img_cut, new_lines)          
+                
+                # Original Cut, for reliability use
+                img_grayscale = img.convert('L')
+                img_orj = np.array(img_grayscale)
+                img_orj_cut = img_orj[edges[0]:edges[1], edges[2]:edges[3]]
+
+                reliability = bar_reliability(img_orj_cut, new_lines)          
                 for key,value in reliability.items():
                     if f'{key}_reliability' in jpeg_dict["reliability"][key]:
                         jpeg_dict["reliability"][key].append(value)
@@ -91,19 +92,17 @@ for AGM in os.listdir(directory):
                     print('\n')
 
                     # % of distances on the SPEP
-                    '''Problem:
-                    it overwrites the list over and over again'''
                     for key,value in line_distance.items():
                         if f'{key} %' in jpeg_dict['distances %']:
                             jpeg_dict['distances %'][f'{key} %'].append(100*value/bar_length)
                         else:
-                            jpeg_dict['distances'][f'{key} %'] = []
-                            jpeg_dict['distances'][f'{key} %'].append(100*value/bar_length)
+                            jpeg_dict['distances %'][f'{key} %'] = []
+                            jpeg_dict['distances %'][f'{key} %'].append(100*value/bar_length)
                         print(f'{key} % : {round(100*value/bar_length,2)}')
                     print('\n')
 # Overall                        
 print('---------------------\n       Overall\n---------------------')                
-print(f'#Accepted files: {count}')
+print(f'   #Accepted files\n   {count}/{count_all} ~ {round(100*count/count_all,2)}%')
 
 # Bar Lenght
 print('---------------------\n       bar lenght')
@@ -111,13 +110,12 @@ print(f'mean: {round(np.mean(jpeg_dict["bar_length"]),2)} \nstd: {round(np.std(j
 
 # Distances
 for key, value in jpeg_dict['distances'].items():
-    print(f'---------------------\n      {key}')
+    print(f'---------------------\n   {key}')
     print(f'mean: {round(np.mean(value),2)} \nstd: {round(np.std(value),2)}')
 print('\n')
 
 # Distances %, how many % of bar is the given distance 
 for key, value in jpeg_dict['distances %'].items():
-    print(f'---------------------\n     {key}')
-    print(f'mean: {round(np.mean(value),2)} \nstd: {np.std(value)}')
+    print(f'---------------------\n {key}')
+    print(f'mean: {round(np.mean(value),2)}% \nstd: {round(np.std(value),2)}%')
 print('\n')
-print(jpeg_dict['distances %'])
