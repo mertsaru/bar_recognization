@@ -3,6 +3,7 @@
 import numpy as np
 from PIL import Image
 from skimage import filters #(python -m pip install -U scikit-image)
+from copy import deepcopy
 
 from parameters import *
 
@@ -347,10 +348,10 @@ def show_line(img, lines):
     '''!Improvement
     Make the function dont change the original img_cut but creates a copy and shows that
     '''
-    img_colored = img
+    img_copy = deepcopy(img)
     for line in lines:
-        img_colored[line,:] = 255
-    img_viz = Image.fromarray(img_colored)
+        img_copy[line,:] = 255
+    img_viz = Image.fromarray(img_copy)
     img_viz.show()
 
 # Check which line is reliable to be the middle point
