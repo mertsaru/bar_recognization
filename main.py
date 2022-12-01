@@ -4,7 +4,7 @@ import os
 from Functions import *
 
 directory = 'dataset_1'
-jpeg_dict = {"bar_length" : [], "reliability": {}, "distances": {}, "distances %":{}}
+jpeg_dict = {"bar_length" : [], "reliability": {}, "distances": {}, "distances %":{}, "mid%":{}}
 count = 0
 count_all = 0
 # inside Main directory
@@ -79,6 +79,23 @@ for AGM in os.listdir(directory):
                     bar_length = edges[1] - edges[0]
                     jpeg_dict['bar_length'].append(bar_length)
                     print(f'bar length: {bar_length}\n')
+                    
+                    obj = {
+                        'albumin mid%': 100*new_lines[0]/bar_length,
+                        'alpha_1 mid%': 100*new_lines[1]/bar_length,
+                        'alpha_2 mid%': 100*new_lines[2]/bar_length,
+                        'beta mid%': 100*new_lines[3]/bar_length,
+                        'gamma mid%': 100*new_lines[4]/bar_length
+                        }
+                    for key, value in obj.items():
+                        if key in jpeg_dict['mid%']:
+                            jpeg_dict['mid%'][key].append(value)
+                        else:
+                            jpeg_dict['mid%'][key] =[]
+                            jpeg_dict['mid%'][key].append(value)
+
+                    for key,value in obj.items():
+                        print(f'{key}: {round(value,2)}')
 
                     line_distance = line_dist(new_lines)       
                     # Distances of the lines    
@@ -116,6 +133,11 @@ print('\n')
 
 # Distances %, how many % of bar is the given distance 
 for key, value in jpeg_dict['distances %'].items():
+    print(f'---------------------\n {key}')
+    print(f'mean: {round(np.mean(value),2)}% \nstd: {round(np.std(value),2)}%')
+print('\n')
+
+for key, value in jpeg_dict['mid%'].items():
     print(f'---------------------\n {key}')
     print(f'mean: {round(np.mean(value),2)}% \nstd: {round(np.std(value),2)}%')
 print('\n')

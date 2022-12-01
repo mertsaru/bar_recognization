@@ -254,7 +254,6 @@ def find_bars_smooth(img_mx, n=5):
     i = 0
     while i < len(delta_row) -n:
         if (delta_row[i] >0) and (delta_row[i] <1):
-            sgn_i = sign(delta_row[i]) # sgn_i is +1 always
             switch = False
             
             '''description n:
@@ -262,7 +261,7 @@ def find_bars_smooth(img_mx, n=5):
             '''
             ## Front loop
             for k in range(i+1,i+n+1):
-                if sign(delta_row[k]) == sgn_i: # if sign i+n and i are same
+                if delta_row[k] >= 0: # if sign i+n and i are same
                     switch = True
                     if k == i+1:
                         i += 1 
@@ -279,7 +278,7 @@ def find_bars_smooth(img_mx, n=5):
             '''
             ## Back Loop
             for j in range(1,n+1):
-                if sign(delta_row[i-j]) != sgn_i: # if sign i-j and i are not same
+                if delta_row[i-j] < 0: # if sign i-j and i are not same
                     switch = True
                     i = i -j +n+1 # start from there since until that point everything will fail with back-loop because of i-jth point
                     break

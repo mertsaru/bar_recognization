@@ -1,9 +1,22 @@
+# Cache
 __pycache__
+
+# Images
 dataset_1
+*jpg
+*png
+
+# Skip notes
 *info*
 Notes.txt
+
+# Test codes
 *old*
 playground*
 *test*
-*jpg
-*png
+
+# Obj version
+SPEP.py
+
+# Referance folder
+/ref
