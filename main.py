@@ -4,7 +4,7 @@ import os
 from Functions import *
 
 directory = 'dataset_1'
-jpeg_dict = {"bar_length" : [], "reliability": {}, "distances": {}, "distances %":{}, "mid%":{}}
+jpeg_dict = {"bar_length" : [], "reliability": {}, "distances": {}, "distances %":{}, "mid%":{}, "ratio":[], 'ratio2':[]}
 count = 0
 count_all = 0
 # inside Main directory
@@ -80,6 +80,7 @@ for AGM in os.listdir(directory):
                     jpeg_dict['bar_length'].append(bar_length)
                     print(f'bar length: {bar_length}\n')
                     
+                    # which percentage stays the mid points
                     obj = {
                         'albumin mid%': 100*new_lines[0]/bar_length,
                         'alpha_1 mid%': 100*new_lines[1]/bar_length,
@@ -93,9 +94,9 @@ for AGM in os.listdir(directory):
                         else:
                             jpeg_dict['mid%'][key] =[]
                             jpeg_dict['mid%'][key].append(value)
-
                     for key,value in obj.items():
                         print(f'{key}: {round(value,2)}')
+                    print('\n')
 
                     line_distance = line_dist(new_lines)       
                     # Distances of the lines    
@@ -107,6 +108,10 @@ for AGM in os.listdir(directory):
                             jpeg_dict['distances'][key].append(value)
                         print(f'{key} : {value}')
                     print('\n')
+
+                    # albumin-alpha1 : alpha1-alpha2
+                    jpeg_dict['ratio'].append(line_distance["albumin - alpha1"]/line_distance["alpha1 - alpha2"])
+                    jpeg_dict['ratio2'].append(line_distance["albumin - alpha1"]/line_distance["albumin - alpha2"])
 
                     # % of distances on the SPEP
                     for key,value in line_distance.items():
@@ -140,4 +145,8 @@ print('\n')
 for key, value in jpeg_dict['mid%'].items():
     print(f'---------------------\n {key}')
     print(f'mean: {round(np.mean(value),2)}% \nstd: {round(np.std(value),2)}%')
+print('\n')
+
+print(f'albumin-alpha1 : alpha1-alpha2\n mean: {round(np.mean(jpeg_dict["ratio"]),2)}\n std: {round(np.std(jpeg_dict["ratio"]),2)}')
+print(f'albumin-alpha1 : albumin-alpha2\n mean: {round(np.mean(jpeg_dict["ratio2"]),2)}\n std: {round(np.std(jpeg_dict["ratio2"]),2)}')
 print('\n')

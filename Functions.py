@@ -26,16 +26,6 @@ def to_matrix(img, edge_multiplier = 500):
     edge_mx = filters.sobel(img_mx)
 
     ## Making edge more visible and saving as an RGB image
-    '''!Idea
-    Haven't checked if I can turn rgb into L in this step. if i can do it, the extra conversion to image and back to the matrix would be eliminated
-    edge_mx values are between 0 and 1, that is why we are multiplying with edge_multiplier to make the range at least 0-255.
-    But if we multiply with a bigger number such as 1000, then points that are close to 0s would be multiplied less than bigger ones
-    and when we adjust everything to range 0-255 with astype(np.uint8), small numbers would be near 0 while big ones would be near 255. 
-    '''
-    '''Solution: Idea
-    there is a calculation to turn rgb into L,
-    if I can implement that, then we do not need to turn back into img and matrix again
-    computation time saving'''
     '''Summary
     We still have [n:m:3] RGB matrix.
     That is why in this step we are transforming our image back to RGB after the border contrasting process.
@@ -50,8 +40,9 @@ def to_matrix(img, edge_multiplier = 500):
 
     return edge_img_gray_mx
 
-# Takes the 'L' matrix form of the image and returns the matrix which the image only contains the bar.
-def find_edge(img_mx):
+# SPEP finding
+## old
+def find_edge(img_mx,bar_height =20 , bar_width =15, amplifier =1.3):
     '''Summary
     First find left and right borders of the bar, then cut the bar with the given borders
     Then it would be easier to find top and bottom, since there would be less noise from the background.
@@ -164,7 +155,170 @@ def find_edge(img_mx):
 
     return [top_row_index , bottom_row_index , left_col_index , right_col_index]
 
-# Finds the mid points of the sub-bars
+## new
+### extracts albumin dimension of the mask img
+def find_albumin(img, bar_height=20, bar_width =15, amplifier=1.3):
+    row_len, column_len = np.shape(img)
+
+    ## Finding the width of the albumin
+    img_mean_col = img.mean(axis=0)
+    global threshold
+    threshold = amplifier * np.median(img_mean_col)
+
+    ### Lefthand of the bar
+    i = 0
+    switch = False
+    while (i < (column_len - bar_width)) and (not(switch)):
+        col_l = img_mean_col[i]
+
+        if col_l > threshold:
+            switch = True
+            for j in range(1 , bar_width):
+                col_test = img_mean_col[i + j]
+                '''!Idea
+                Here we can also use derivative to find where the big change is, maximum change
+                '''
+                if col_test < threshold:
+                    '''Summary
+                    skips to the background since we know all of the col_l will fail until there.
+                    '''
+                    skip_step = j
+                    i += skip_step + 1 
+                    switch = False
+                    break  # Turn back to while loop with index starting after i+j
+        else:
+            i += 1
+    else:
+        if switch:
+            left_col_index = i        
+        else:
+            raise Exception('No left part of the bar found')
+
+    ### Righthand of the bar
+    '''Summary
+    Starting from the bar width, where we left off, so we do not need to recalculate the whole process
+    '''
+    for j in range(left_col_index + bar_width, column_len): 
+        col_test = img_mean_col[j]
+
+        if (col_test < threshold):
+            right_col_index = j-1
+            break
+
+    ## Finding the height of the albumin
+    '''Summary
+    Cut the img for better mean performance.
+    The cutted image give us less black values on the rows, so it would be less background noise.
+    '''
+    img_cutted_col_mx = img[:,left_col_index:right_col_index]
+    img_mean_row = img_cutted_col_mx.mean(axis=1)
+
+    ### Top of the albumin
+    '''Summary
+    We are using same threshold we used to find width of the bar, since threshold is a good number to divide black background and white lines.
+    '''
+    i = 0
+    switch = False
+    while (i < (row_len - bar_height)) and (not(switch)):
+        row_u = img_mean_row[i]
+        
+        if row_u > threshold:
+            switch = True
+            for j in range(1 , bar_height):
+                row_u_test = img_mean_row[i + j]
+                
+                if row_u_test < threshold:
+                    skip_step = j
+                    i += skip_step + 1
+                    switch = False
+                    break
+        else:
+            i +=1
+    else:
+        if switch:
+            top_row_index = i
+        else:
+            raise Exception('No upper part of the bar found')
+
+    # Bottom of the albumin
+
+    for j in range(top_row_index + bar_height, row_len): 
+        row_test = img_mean_row[j]
+
+        if (row_test < threshold):
+            bottom_row_index = j
+            break
+    return [top_row_index, bottom_row_index, left_col_index, right_col_index]
+### creates mask from find_albumin
+def create_mask(list,buffer =5):
+    top,bottom,left,right = list
+    height = bottom - top +buffer
+    width = right - left +buffer
+    return np.ones((height,width))
+### use mask to find spep
+def locate_spep(img_mx,mask,step=3):
+    row_len,col_len = np.shape(img_mx)
+    col_len_q = col_len/4
+    row_len_q = row_len/4
+
+    cutout_height,cutout_width = np.shape(mask)
+    folder_max = 0
+    i=0
+    while i<col_len_q:
+        j=0
+        while j< row_len_q:
+            cutout = img_mx[i: i+cutout_height, j: j+cutout_width]
+            folder = np.multiply(cutout,mask)
+            folder_value = folder.sum()
+            if folder_value > folder_max:
+                folder_max = folder_value
+                top_row_index = i
+                left_col_index = j
+                j += step
+            else:
+                j += step
+        else:
+            i += step
+    
+    right_col_index = left_col_index + cutout_width
+
+    ## Open the folder
+    img_cut = img_mx[:,left_col_index:right_col_index]
+    img_mean_row_left = img_cut[:,0:round(cutout_width/2)].mean(axis=1)
+    img_mean_row_right = img_cut[:,round(cutout_width/2):-1].mean(axis=1)
+
+    i = 0
+    switch = False
+    while (i < row_len) and (not(switch)):
+        left_row = img_mean_row_left[row_len -1 -i] # bottom i^th row's left half
+        right_row = img_mean_row_right[row_len -1 -i] # bottom i^th row's right half
+        if (left_row > threshold) and (right_row > threshold):
+            switch = True
+            for j in range(1 , bar_height):
+                left_row_test = img_mean_row_left[row_len -1 -i -j] # j above row of row_b
+                right_row_test = img_mean_row_right[row_len -1 -i -j]
+                if (left_row_test < threshold) or (right_row_test < threshold):
+                    skip_step = j
+                    i += skip_step +1
+                    switch = False
+                    break
+        else:
+            i += 1
+    else:
+        if switch:
+            bottom_row_index = row_len -1  -i
+        else:
+            print('no bottom of the bar found')
+    return [top_row_index,bottom_row_index,left_col_index,right_col_index]
+### cut the spep part of the img
+def cut_spep(img,boundaries):
+    img_copy = deepcopy(img)
+    t,b,l,r = boundaries
+    img_copy = img_copy[t:b,l:r]
+    return img_copy
+
+# Finding lines
+## Finds the mid points of SPEP lines to analyze the bar
 '''!info!
 We are using cutted version of the img. So if you want to see the mid-points on a whole img version,
 you should add top_col_index(±1) to the line indices.'''
@@ -181,7 +335,7 @@ if left part there is a 0 and some part later -(0) comes?
 '''
 '''Comment on find bars functions:
 They have very poor performance regarding to smooth and dent with only corresponding to one example.'''
-def find_bars_sharp(img_mx):
+def find_peak_sharp(img_mx):
     lines = []
     row_vals = img_mx.mean(axis = 1)
     i=0
@@ -200,7 +354,7 @@ def find_bars_sharp(img_mx):
             i += 1    
     return lines
 
-def find_bars_sharp_v2(img_mx):
+def find_peak_sharp_v2(img_mx):
     lines = []
     row_vals = img_mx.mean(axis=1)
 
@@ -218,7 +372,7 @@ def find_bars_sharp_v2(img_mx):
             i += 1
     return lines
 
-def find_bars_sharp_v3(img_mx):
+def find_peak_sharp_v3(img_mx):
     lines = []
     row_vals = img_mx.mean(axis=1)
 
@@ -236,7 +390,7 @@ def find_bars_sharp_v3(img_mx):
             i += 1
     return lines
 
-def find_bars_smooth(img_mx, n=5):
+def find_peak_smooth(img_mx, n=5):
     '''Improvement
     You can easily eliminate sign function. its unnecessary.
     '''
@@ -292,7 +446,7 @@ def find_bars_smooth(img_mx, n=5):
             i += 1
     return lines
     
-def find_bars_dent(img_mx, n=15):
+def find_peak_dent(img_mx, n=15):
     lines = []
     row_vals = img_mx.mean(axis=1)
 
@@ -312,12 +466,134 @@ def find_bars_dent(img_mx, n=15):
             i +=1
     return lines
 
-# Eliminate close lines 
-def line_elimenator_v2(lines):
-    '''!Bug
-    Last line is skipped
-    Probably while j condition is not running
+
+def find_trough_sharp(img_mx):
+    lines = []
+    row_vals = img_mx.mean(axis = 1)
+    i=0
+    while i < (len(row_vals) -1):
+        delta_row = row_vals[i+1] - row_vals[i]
+        if (delta_row <= 0) and (delta_row >= -1):
+            for j in range(i, len(row_vals) -1):
+                delta_row_j = row_vals[j+1] - row_vals[j]
+                if delta_row_j > 0:
+                    lines.append(j-1)
+                    i = j+1
+                    break
+                else:
+                    i = len(row_vals)
+        else:
+            i += 1    
+    return lines
+
+def find_trough_sharp_v2(img_mx):
+    lines = []
+    row_vals = img_mx.mean(axis=1)
+
+    # Creating derivative list
+    delta_row = []
+    for i in range(len(row_vals) -1):
+        delta_row.append(row_vals[i+1] - row_vals[i])
+
+    i = 0
+    while i < len(delta_row)-1:
+        if (delta_row[i] < 0 ) and (delta_row[i+1] >= 0):
+            lines.append(i)
+            i += 1
+        else:
+            i += 1
+    return lines
+
+def find_trough_sharp_v3(img_mx):
+    lines = []
+    row_vals = img_mx.mean(axis=1)
+
+    # Creating derivative list
+    delta_row = []
+    for i in range(len(row_vals) -1):
+        delta_row.append(row_vals[i+1] - row_vals[i])
+
+    i = 0
+    while i < len(delta_row)-1:
+        if (delta_row[i] < 0) and (delta_row[i] > -1) and (delta_row[i+1] < 1) and (delta_row[i+1] > 0) :
+            lines.append(i)
+            i += 1
+        else:
+            i += 1
+    return lines
+
+def find_trough_smooth(img_mx, n=5):
+    '''Improvement
+    You can easily eliminate sign function. its unnecessary.
     '''
+    lines = []
+    row_vals = img_mx.mean(axis=1)
+
+    # Creating derivative list
+    delta_row = []
+    for i in range(len(row_vals) -1):
+        delta_row.append(row_vals[i+1] - row_vals[i])
+
+    i = 0
+    while i < len(delta_row) -n:
+        if (delta_row[i] <0) and (delta_row[i] >-1):
+            switch = False
+            
+            ## Front loop
+            for k in range(i+1,i+n+1):
+                if delta_row[k] <= 0: # if sign i+n and i are same
+                    switch = True
+                    if k == i+1:
+                        i += 1 
+                    else:
+                        i = k +n # start from k+n since we know k is positive but k-1 is negative, and Back-loop will fail until k
+                    break
+            if switch: # Turn back to while loop with i = k+n
+                continue
+
+            ## Back Loop
+            for j in range(1,n+1):
+                if delta_row[i-j] > 0: # if sign i-j and i are not same
+                    switch = True
+                    i = i -j +n+1 # start from there since until that point everything will fail with back-loop because of i-jth point
+                    break
+            if switch: # Turns back to while loop with i = i-j+n+1
+                continue
+            
+            lines.append(i)
+            i = i+n+1 # If we passed until here, we know i+1 until i+n are all negative so they will fail anyways
+
+        else:
+            i += 1
+    return lines
+
+def find_trough_dent(img_mx, n=15):
+    lines = []
+    row_vals = img_mx.mean(axis=1)
+
+    delta_row = []
+    for i in range(len(row_vals) -1):
+        delta_row.append(row_vals[i+1] - row_vals[i])
+    
+    i = 0
+    while i< len(delta_row)-n:
+        if (delta_row[i] <0) and (delta_row[i+1] >0):
+            left_mean = np.mean(delta_row[i-n:i+1])
+            right_mean = np.mean(delta_row[i+1:i+n+1])
+            if (left_mean <0) and (right_mean >0):
+                lines.append(i)
+            i += 1
+        else:
+            i +=1
+    return lines
+
+
+## Eliminate close lines 
+def line_elimenator_v2(lines):
+    ### getting rid of duplicate lines
+    lines.sort()
+    lines = list(dict.fromkeys(lines))
+
     i = 0
     new_lines = []
     while i < len(lines):
@@ -341,17 +617,55 @@ def line_elimenator_v2(lines):
             break
 
     return new_lines
- 
-# Line drawer
+
+# Returns distances of the bars
+def line_dist(lines):
+    '''!Idea
+    For further calculations, we might include bar lenght to the calculation,
+    and take the ratio of the distance to full bar length'''
+    line_name ={
+        0 : 'albumin',
+        1 : 'alpha1',
+        2 : 'alpha2',
+        3 : 'beta',
+        4 : 'gamma'
+        }    
+    
+    dist_dict ={}
+    for i in range(len(lines)):
+        for j in range(i+1, len(lines)):
+            d_ij = f'{line_name[i]} - {line_name[j]}'
+            distance = lines[j]-lines[i]
+            dist_dict[d_ij] = distance
+    
+    return dist_dict
+
+# Visualization 
+## Mid line drawer
 def show_line(img, lines):
-    '''!Improvement
-    Make the function dont change the original img_cut but creates a copy and shows that
-    '''
-    img_copy = deepcopy(img)
+    img_viz = deepcopy(img)
     for line in lines:
-        img_copy[line,:] = 255
-    img_viz = Image.fromarray(img_copy)
+        img_viz[line,:] = 255
+    img_viz = Image.fromarray(img_viz)
     img_viz.show()
+
+## Show any matrix
+def show_matrix(img):
+    img_viz = Image.fromarray(img)
+    img_viz.show()
+
+## Shows the bar with the approx. lenght drawn
+def draw_bar(img,bar):
+    drawn_img = deepcopy(img)
+    img_height, img_width = np.shape(drawn_img)
+    img_center = round(img_width/2)
+    if img_height < bar:
+        difference = bar - img_height
+        buffer_zone = np.zeros((difference,img_width))
+        drawn_img = np.vstack((drawn_img,buffer_zone))
+    drawn_img[0 : bar , img_center-5 : img_center+5] = 255
+    drawn_img = Image.fromarray(drawn_img)
+    drawn_img.show()
 
 # Check which line is reliable to be the middle point
 '''Not working efficiently'''
@@ -469,28 +783,6 @@ def bar_reliability_nodict(img_mx, lines, error_function = 'linear', max_dist =1
         validity_list.append(reliability)
     
     return validity_list
-
-# Returns distances of the bars
-def line_dist(lines):
-    '''!Idea
-    For further calculations, we might include bar lenght to the calculation,
-    and take the ratio of the distance to full bar length'''
-    line_name ={
-        0 : 'albumin',
-        1 : 'alpha1',
-        2 : 'alpha2',
-        3 : 'beta',
-        4 : 'gamma'
-        }    
-    
-    dist_dict ={}
-    for i in range(len(lines)):
-        for j in range(i+1, len(lines)):
-            d_ij = f'{line_name[i]} - {line_name[j]}'
-            distance = lines[j]-lines[i]
-            dist_dict[d_ij] = distance
-    
-    return dist_dict
 
 # If data is eligable for calculation, put it into a dataset for further calculation.
 '''Not usable yet!!!'''

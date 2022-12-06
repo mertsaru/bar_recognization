@@ -2,7 +2,7 @@
 __pycache__
 
 # Images
-dataset_1
+dataset_*
 *jpg
 *png
 
@@ -14,9 +14,6 @@ Notes.txt
 *old*
 playground*
 *test*
-
-# Obj version
-SPEP.py
 
 # Referance folder
 /ref
