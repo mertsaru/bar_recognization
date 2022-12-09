@@ -2,7 +2,7 @@
 __pycache__
 
 # Images
-dataset_*
+datasets
 *jpg
 *png
 
@@ -11,9 +11,7 @@ dataset_*
 Notes.txt
 
 # Test codes
-*old*
-playground*
 *test*
 
 # Referance folder
-/ref
+ref

@@ -5,7 +5,6 @@ from PIL import Image
 from skimage import filters #(python -m pip install -U scikit-image)
 from copy import deepcopy
 
-from parameters import *
 
 # Turns the image format and dimensions into a static format.
 def reshape(img):
@@ -41,121 +40,6 @@ def to_matrix(img, edge_multiplier = 500):
     return edge_img_gray_mx
 
 # SPEP finding
-## old
-def find_edge(img_mx,bar_height =20 , bar_width =15, amplifier =1.3):
-    '''Summary
-    First find left and right borders of the bar, then cut the bar with the given borders
-    Then it would be easier to find top and bottom, since there would be less noise from the background.
-    '''
-    row_len, column_len = np.shape(img_mx)
-
-    ## Finding the width of the bar
-    img_mean_col = img_mx.mean(axis=0)
-
-    threshold = amplifier * np.median(img_mean_col)
-
-    ### Lefthand of the bar
-    i = 0
-    switch = False
-    while (i < (column_len - bar_width)) and (not(switch)):
-        col_l = img_mean_col[i]
-
-        if col_l > threshold:
-            switch = True
-            for j in range(1 , bar_width):
-                col_test = img_mean_col[i + j]
-                '''!Idea
-                Here we can also use derivative to find where the big change is, maximum change
-                '''
-                if col_test < threshold:
-                    '''Summary
-                    skips to the background since we know all of the col_l will fail until there.
-                    '''
-                    skip_step = j
-                    i += skip_step + 1 
-                    switch = False
-                    break  # Turn back to while loop with index starting after i+j
-        else:
-            i += 1
-    else:
-        if switch:
-            left_col_index = i        
-        else:
-            raise Exception('No left part of the bar found')
-
-    ### Righthand of the bar
-    '''Summary
-    Starting from the bar width, where we left off, so we do not need to recalculate the whole process
-    '''
-    for j in range(left_col_index + bar_width, column_len): 
-        col_test = img_mean_col[j]
-
-        if (col_test < threshold):
-            right_col_index = j-1
-            break
-
-    ## Finding the height of the bar
-    '''Summary
-    Cut the img for better mean performance.
-    The cutted image give us less black values on the rows, so it would be less background noise.
-    '''
-    img_cutted_col_mx = img_mx[:,left_col_index:right_col_index]
-    img_mean_row = img_cutted_col_mx.mean(axis=1)
-
-    ### Top of the bar
-    '''Summary
-    We are using same threshold we used to find width of the bar, since threshold is a good number to divide black background and white lines.
-    '''
-    i = 0
-    switch = False
-    while (i < (row_len - bar_height)) and (not(switch)):
-        row_u = img_mean_row[i]
-        
-        if row_u > threshold:
-            switch = True
-            for j in range(1 , bar_height):
-                row_u_test = img_mean_row[i + j]
-                
-                if row_u_test < threshold:
-                    skip_step = j
-                    i += skip_step + 1
-                    switch = False
-                    break
-        else:
-            i +=1
-    else:
-        if switch:
-            top_row_index = i
-        else:
-            raise Exception('No upper part of the bar found')
-            
-    ### Bottom of the bar
-    i = 0
-    switch = False
-    while (i < row_len) and (not(switch)):
-        row_b = img_mean_row[row_len -1 -i] # bottom i^th row
-        
-        if row_b > threshold:
-            switch = True
-            for j in range(1 , bar_height):
-                row_b_test = img_mean_row[row_len -1 -i -j] # j above row of row_b
-
-                if row_b_test < threshold:
-                    skip_step = j
-                    i += skip_step +1
-                    switch = False
-                    break
-        else:
-            i += 1
-    else:
-        if switch:
-            bottom_row_index = row_len -1  -i
-        else:
-            raise Exception('No bottom part of the bar found')
-
-    return [top_row_index , bottom_row_index , left_col_index , right_col_index]
-
-## new
 ### extracts albumin dimension of the mask img
 def find_albumin(img, bar_height=20, bar_width =15, amplifier=1.3):
     row_len, column_len = np.shape(img)
@@ -164,7 +48,7 @@ def find_albumin(img, bar_height=20, bar_width =15, amplifier=1.3):
     img_mean_col = img.mean(axis=0)
     global threshold
     threshold = amplifier * np.median(img_mean_col)
-
+    print(threshold)
     ### Lefthand of the bar
     i = 0
     switch = False
@@ -294,7 +178,7 @@ def locate_spep(img_mx,mask,step=3):
         right_row = img_mean_row_right[row_len -1 -i] # bottom i^th row's right half
         if (left_row > threshold) and (right_row > threshold):
             switch = True
-            for j in range(1 , bar_height):
+            for j in range(1 , bar_height=10):
                 left_row_test = img_mean_row_left[row_len -1 -i -j] # j above row of row_b
                 right_row_test = img_mean_row_right[row_len -1 -i -j]
                 if (left_row_test < threshold) or (right_row_test < threshold):
@@ -667,6 +551,51 @@ def draw_bar(img,bar):
     drawn_img = Image.fromarray(drawn_img)
     drawn_img.show()
 
+def find_bar_dist(img,height=[1/2,1],width=[0,1/2], bar_width = 15): # read all the bars top point
+    row_len, col_len = np.shape(img)
+    u = col_len*height[0]
+    d = col_len*height[1]
+    l = row_len*width[0]
+    r = row_len*width[1]
+    mean_col_vals = np.mean(img[u:d,l:r], axis=0)
+    '''if it passes the threshold for quite a while then take it as left,
+    if it goes under the threshold for quite a while then take it as right'''
+    list_left = []
+    list_right = []
+    i = 0
+    switch = False
+    while (i < (row_len - bar_width)) and (not(switch)):
+        col_l = mean_col_vals[i]
+
+        if col_l > threshold:
+            switch = True
+            for j in range(1 , bar_width):
+                col_test = mean_col_vals[i + j]
+                if col_test < threshold:
+                    '''Summary
+                    skips to the background since we know all of the col_l will fail until there.
+                    '''
+                    skip_step = j
+                    i += skip_step + 1 
+                    switch = False
+                    break  # Turn back to while loop with index starting after i+j
+        else:
+            i += 1
+    else:
+        if switch:
+            left_col_index = i        
+
+    ### Righthand of the bar
+    '''Summary
+    Starting from the bar width, where we left off, so we do not need to recalculate the whole process
+    '''
+    for j in range(left_col_index + bar_width, column_len): 
+        col_test = img_mean_col[j]
+
+        if (col_test < threshold):
+            right_col_index = j-1
+            break
+
 # Check which line is reliable to be the middle point
 '''Not working efficiently'''
 def bar_reliability(img_mx, lines, error_function ='linear', max_dist =14):
@@ -741,11 +670,11 @@ def bar_reliability(img_mx, lines, error_function ='linear', max_dist =14):
         '''!Small error: Gauss
         not reliable
         erf(gauss) function is <~1 when it is at 1, we are not calculating error fully'''
-        if (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
-            reliability = 1-erf(mean_error)
-        elif (error_function == 'linear'):
+        if (error_function == 'linear'):
             reliability = 1- mean_error
-        
+            
+        #elif (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
+        #    reliability = 1-erf(mean_error)
         # Add reliability to the dict
             validity_dict[line_name[i]] = reliability        
     
@@ -774,10 +703,10 @@ def bar_reliability_nodict(img_mx, lines, error_function = 'linear', max_dist =1
         mean_error = err /(brightness*distance) 
         
         # Turn error into reliability
-        if (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
-            reliability = 1-erf(mean_error)
-        elif (error_function == 'linear'):
+        if (error_function == 'linear'):
             reliability = 1- mean_error
+        #elif (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
+        #    reliability = 1-erf(mean_error)
         
         # Add reliability to the list
         validity_list.append(reliability)

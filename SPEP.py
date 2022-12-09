@@ -11,10 +11,12 @@ line_names ={
             4 : 'gamma'
             }    
 
-class open:
+class spep:
 
     def __init__(self, name):
         self.name = name
+        self.is_ref = False
+        self.is_mask = False
 
     # Functions
 
@@ -29,36 +31,36 @@ class open:
         img = Image.open(self.name)
 
         ## Turning into [n:m:3] array
-        self.matrix_color = np.array(img)
+        self.img_color = np.array(img)
 
         ## Turn into grayscale and then a matrix to save in self
         img_gray = img.convert('L')
-        self.matrix_orj = np.array(img_gray)
+        self.img_orj = np.array(img_gray)
         
         ## Making edge more visible and saving as an RGB image and turning into grayscale matrix
-        edge_mx = filters.sobel(self.matrix_color)
+        edge_mx = filters.sobel(self.img_color)
         edge_img_rgb = Image.fromarray((edge_mx * edge_multiplier).astype(np.uint8),'RGB') 
         edge_img_gray = edge_img_rgb.convert('L') # convert library indicates we can transform while in matrix form. Maybe it would be faster? We can interfere in edge_mx *  multiplier.astype(uint8)
-        self.matrix_test = np.array(edge_img_gray)
+        self.img_subject = np.array(edge_img_gray)
 
         ## Saving threshold for distinguishing the background from the bar to find bottom of the bar
-        img_col_mean = self.matrix_test.mean(axis=0)
+        img_col_mean = self.img_subject.mean(axis=0)
         self.threshold = np.median(img_col_mean) *amplifier # increasing threshold for eliminating black-space better 
 
         ## Taking the shape of the matrix for finding bars
-        self.row, self.col = np.shape(self.matrix_test)
+        self.img_height, self.img_width = np.shape(self.img_subject)
 
     ## Creating albumin mask
     @classmethod
     def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer = 5):
-
+        
         ## Finding the width of the albumin
-        img_col_mean = self.matrix_test.mean(axis=0)
+        img_col_mean = self.img_subject.mean(axis=0)
 
         ### Lefthand of the bar
         i = 0
         switch = False
-        while (i < (self.col - bar_width)) and (not(switch)):
+        while (i < (self.img_width - bar_width)) and (not(switch)):
             col_l = img_col_mean[i]
 
             if col_l > self.threshold:
@@ -88,7 +90,7 @@ class open:
         '''Summary
         Starting from the bar width, where we left off, so we do not need to recalculate the whole process
         '''
-        for j in range(left_col_index + bar_width, self.col): 
+        for j in range(left_col_index + bar_width, self.img_width): 
             col_test = img_col_mean[j]
 
             if (col_test < self.threshold):
@@ -96,7 +98,7 @@ class open:
                 break
 
         ## Finding the height of the albumin
-        img_cutted_col_mx = self.matrix_test[:,left_col_index:right_col_index] # Cutting left and right sides to find top of the albumin better
+        img_cutted_col_mx = self.img_subject[:,left_col_index:right_col_index] # Cutting left and right sides to find top of the albumin better
         img_row_mean = img_cutted_col_mx.mean(axis=1)
 
         ### Top of the albumin
@@ -105,7 +107,7 @@ class open:
         '''
         i = 0
         switch = False
-        while (i < (self.row - bar_height)) and (not(switch)):
+        while (i < (self.img_height - bar_height)) and (not(switch)):
             row_u = img_row_mean[i]
             
             if row_u > self.threshold:
@@ -127,7 +129,7 @@ class open:
                 print('No upper part of the bar found')
 
         ### Bottom of the albumin
-        for j in range(top_row_index + bar_height, self.row): 
+        for j in range(top_row_index + bar_height, self.img_height): 
             row_test = img_row_mean[j]
 
             if (row_test < self.threshold):
@@ -137,30 +139,31 @@ class open:
             cls.cutout_h = bottom_row_index - top_row_index +buffer
             cls.cutout_w = right_col_index - left_col_index +buffer
             cls.mask = np.ones((cls.cutout_h,cls.cutout_w))
-            
-            return matrix(self.matrix_orj[top_row_index:bottom_row_index,left_col_index:right_col_index])
+            cls.mask_name = self.name
+            self.is_mask = True
+            return show(self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:])
         except:
             print('Couldn\'t find the mask! Try a different image.' )
 
     ## Creating derivative list for searching peaks with find_peak_* functions
     def derivative(self):
-        row_vals = self.matrix_test.mean(axis=1)
+        row_vals = self.img_subject.mean(axis=1)
         delta_row = []
         for i in range(len(row_vals) -1):
             delta_row.append(row_vals[i+1] - row_vals[i])
         self.delta_row = delta_row
 
-    def locate_spep(self,step=3):
+    def locate_spep(self, step =3, precision =20, search_width = [0, 0.25], search_lenght = [0, 0.25]):
     
-        col_len_part = self.col/4
-        row_len_part = self.row/4
+        width_cut = self.img_width *search_width[1]
+        column_cut = self.img_height *search_lenght[1]
 
         folder_max = 0
-        i=0
-        while i<col_len_part:
-            j=0
-            while j< row_len_part:
-                cutout = self.matrix_test[i: i+self.cutout_h, j: j+self.cutout_w]
+        i = search_width[0]
+        while i<width_cut:
+            j = search_lenght[0]
+            while j< column_cut:
+                cutout = self.img_subject[i: i+self.cutout_h, j: j+self.cutout_w]
                 folder = np.multiply(cutout,self.mask)
                 folder_value = folder.sum()
                 if folder_value > folder_max:
@@ -176,59 +179,29 @@ class open:
         right_col_index = left_col_index + self.cutout_w
 
         ## Open the folder
-
-        ### Dividing left and right parts to check row values seperately, to avoid a mark on one of the sides.
-        img_cut = self.matrix_test[:,left_col_index:right_col_index]
-        img_mean_row_left = img_cut[:,0:round(self.cutout_w/2)].mean(axis=1)
-        img_mean_row_right = img_cut[:,round(self.cutout_w/2):-1].mean(axis=1)
-
-        i = 0
-        switch = False
-        while (i < self.row) and (not(switch)):
-            left_row = img_mean_row_left[self.row -1 -i] # bottom i^th row's left half
-            right_row = img_mean_row_right[self.row -1 -i] # bottom i^th row's right half
-            if (left_row > self.threshold) and (right_row > self.threshold):
-                switch = True
-                for j in range(1 , bar_height):
-                    left_row_test = img_mean_row_left[self.row -1 -i -j] # j above row of row_b
-                    right_row_test = img_mean_row_right[self.row -1 -i -j]
-                    if (left_row_test < self.threshold) or (right_row_test < self.threshold):
-                        skip_step = j
-                        i += skip_step +1
-                        switch = False
-                        break
-            else:
-                i += 1
-        else:
-            if switch:
-                bottom_row_index = self.row -1  -i
-            else:
-                print('no bottom of the bar found')
+        img_center = round(left_col_index + self.cutout_w/2)
+        if self.img_height - top_row_index < self.bar_lenght: # self.img_height-top_row_index is the number of the top of the bar for cutting, need to write bar_lengt finding funciton to find cls.bar_lenght like create_mask, if it is shorter then add buffer zone
+            difference = self.bar_lenght - (self.img_height - top_row_index)
+            buffer_zone = np.zeros((difference,self.cutout_w))
+            self.img_cut = np.vstack((drawn_img,buffer_zone))
+        drawn_img[0 : bar , img_center-5 : img_center+5] = 255
         
-        try:
-            self.top, self.bottom, self.left, self.right = top_row_index, bottom_row_index, left_col_index, right_col_index
-            self.matrix_cut = self.matrix_orj[self.top:self.bottom, self.left:self.right]
-            self.matrix_test = self.matrix_test[self.top:self.bottom, self.left:self.right]
-            self.derivative()
-
-            return matrix(self.matrix_cut)
-        except:
-            print('Couldn\'t find the SPEP bar! File will be skipped!')
-
+        drawn_img = Image.fromarray(drawn_img)
+        drawn_img.show()
     ### Finding the middle point of the lines by searching peaks of the bar
     def find_bars_sharp(self):
         lines = []
         i=0
-        while i < (len(self.row_vals_alter) -1):
+        while i < (len(self.img_height_vals_alter) -1):
             if (self.delta_row[i] >= 0) and (self.delta_row[i] <= 1):
-                for j in range(i, len(self.row_vals_alter) -1):
+                for j in range(i, len(self.img_height_vals_alter) -1):
                     if self.delta_row[j] < 0:
                         self.lines.append(j-1)
                         lines.append(j-1)
                         i = j+1
                         break
                     else:
-                        i = len(self.row_vals_alter)
+                        i = len(self.img_height_vals_alter)
             else:
                 i += 1    
 
@@ -302,9 +275,23 @@ class open:
             else:
                 i +=1
 
+    def find_lines(self,function = 'exclusive'):
+        if function == 'exclusive':
+            pass
+        elif function == 'inclusive':
+            pass
+        
+        try:
+            self.line_cleaner()
+        except:
+            print('Wrong Input!')
+
     ## Eliminate close lines 
-    def line_elimenator(lines):
+    def line_cleaner(self, range =10):
+        '''Idea:
+        I would suggest to find a static-dynamic range. depends on the bar lenght. like 1/5th of the bar or smthg'''
         ### getting rid of duplicate lines
+        lines = self.lines
         lines.sort()
         lines = list(dict.fromkeys(lines))
 
@@ -317,7 +304,7 @@ class open:
             j = i+1
             while j < len(lines):
                 next_line = lines[j]
-                if (next_line - nhood_lines[-1]) < 10:
+                if (next_line - nhood_lines[-1]) < range:
                     nhood_lines.append(next_line)
                     j += 1
                     continue
@@ -330,9 +317,9 @@ class open:
                 i +=1
                 break
 
-        return new_lines
+            self.lines = new_lines
 
-    # Returns distances of the bars
+    # Returns distances of the lines
     def line_dist(lines):
         if len(lines)==5:
             dist_dict ={}
@@ -344,7 +331,7 @@ class open:
             
             return dist_dict
         else:
-            print('The line number is not 5')
+            print('The number of lines is not 5')
 
 
     ## Shows the bar with the approx. lenght drawn
@@ -363,42 +350,48 @@ class open:
 
     ## Visualization
     def test(self):
-        return matrix(self.matrix_test)
+        return show(self.img_subject)
 
     def draw_lines(self,img = 'orj'):
         if img == 'orj': # orj grayscale fullscale 
-            img_viz = deepcopy(self.matrix_orj)
+            img_viz = deepcopy(self.img_orj)
             for line in self.lines:
                 img_viz[line+self.top,self.left:self.right] = 255
-            return matrix(img_viz)
+            return show(img_viz)
         
         elif img == 'cut': # orj grayscale spep part
-            img_viz = deepcopy(self.matrix_cut)
+            img_viz = deepcopy(self.image_cut)
             for line in self.lines:
                 img_viz[line,:] = 255
-            return matrix(img_viz)
+            return show(img_viz)
         
         elif img == 'color': # orj color fullscale
-            img_viz = deepcopy(self.matrix_color)
+            img_viz = deepcopy(self.img_color)
             for line in self.lines:
                 img_viz[line+self.top,self.left:self.right,:] = 0
-            return matrix(img_viz)
+            return show(img_viz)
         
         elif img == 'test': # reader img spep part
-            img_viz = deepcopy(self.matrix_test)
+            img_viz = deepcopy(self.img_subject)
             for line in self.lines:
                 img_viz[line,:] = 255
-            return matrix(img_viz)
+            return show(img_viz)
         
         else:
             print('!Wrong input in draw_lines!')
 
 # Using Matrix to visualize
-class matrix:
+class show:
 
     def __init__(self,matrix):
         self.matrix = matrix
     
     def show(self):
-        img_viz = Image.fromarray(self.matrix)
-        img_viz.show()
+        if len(np.shape(self.matrix))==2: # grayscale
+            img_viz = Image.fromarray(self.matrix)
+            img_viz.show(self.name)
+        elif len(np.shape(self.matrix))==3: # RGB
+            img_viz = Image.fromarray(self.matrix,'RGB')
+            img_viz.show()
+        else:
+            print("Image is not readable")
