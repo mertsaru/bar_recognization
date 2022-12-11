@@ -18,8 +18,6 @@ class spep:
         self.is_ref = False
         self.is_mask = False
 
-    # Functions
-
     ## Creating matrix from the image
     def read(self, edge_multiplier = 500, amplifier = 1.3):
         '''Summary: edge multiplier
@@ -52,7 +50,7 @@ class spep:
 
     ## Creating albumin mask
     @classmethod
-    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer = 5):
+    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer = 0):
         
         ## Finding the width of the albumin
         img_col_mean = self.img_subject.mean(axis=0)
@@ -146,6 +144,7 @@ class spep:
             print('Couldn\'t find the mask! Try a different image.' )
 
     ## Creating derivative list for searching peaks with find_peak_* functions
+    '''Automaticly called in the class'''
     def derivative(self):
         row_vals = self.img_subject.mean(axis=1)
         delta_row = []
@@ -153,7 +152,10 @@ class spep:
             delta_row.append(row_vals[i+1] - row_vals[i])
         self.delta_row = delta_row
 
-    def locate_spep(self, step =3, precision =20, search_width = [0, 0.25], search_lenght = [0, 0.25]):
+    ## locates left right and top of the test bar
+    '''Automaticly called in the class'''
+    # ! use img_orj maybe? it will give better boundary
+    def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
     
         width_cut = self.img_width *search_width[1]
         column_cut = self.img_height *search_lenght[1]
@@ -177,18 +179,143 @@ class spep:
                 i += step
         
         right_col_index = left_col_index + self.cutout_w
+    
+        self.test_left, self.test_right, self.test_top = left_col_index, right_col_index, top_row_index
+        self.test_center = round(self.test_left + self.cutout_w/2)
+
+    ## Bar lenght
+    @classmethod
+    def bar_lenght(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
+        
+        if hasattr(self,'test_right'):
+            pass
+        else:
+            self.locate_lru(step, search_width, search_lenght)
+        
+        img_mx = deepcopy(self.img_subject)
+        img_cut = img_mx[:,self.test_left : self.test_right]
+        img_mean_row_left = img_cut[:,0:round(self.cutout_w/2)].mean(axis=1)
+        img_mean_row_right = img_cut[:,round(self.cutout_w/2):-1].mean(axis=1)
+
+        i = 0
+        switch = False
+        while (i < self.img_height) and (not(switch)):
+            left_row = img_mean_row_left[self.img_height -1 -i] # bottom i^th row's left half
+            right_row = img_mean_row_right[self.img_height -1 -i] # bottom i^th row's right half
+            if (left_row > self.threshold) and (right_row > self.threshold):
+                switch = True
+                for j in range(1 , min_bar_height):
+                    left_row_test = img_mean_row_left[self.img_height -1 -i -j] # j above row of row_b
+                    right_row_test = img_mean_row_right[self.img_height -1 -i -j]
+                    if (left_row_test < self.threshold) or (right_row_test < self.threshold):
+                        skip_step = j
+                        i += skip_step +1
+                        switch = False
+                        break
+            else:
+                i += 1
+        else:
+            if switch:
+                bottom_row_index = self.img_height -1  -i
+            
+        try:
+            cls.bar = bottom_row_index - self.test_top
+            cls.bar_name = self.name
+            self.is_ref = True
+            self.test_color = deepcopy(self.img_color)
+            self.test_color = self.test_color[self.test_top : self.test_top + self.bar , self.test_left : self.test_right,:]
+            return self.test_color
+        except:
+            print('the lenght of the bar couldn\'t be found')
+
+    @classmethod
+    #test-gamma distance
+    # ! Fix, reads badly
+    def find_bar_dist(cls, self, height=[1/2,1], width=[0,1/2], min_space_width = 10): # read all the bars top point
+        
+        if hasattr(self,'test_right'):
+            pass
+        else:
+            self.locate_lru()
+
+        top_cut = round(self.img_height*height[0])
+        bottom_cut = round(self.img_height*height[1])
+        left_cut = round(self.img_width*width[0])
+        right_cut = round(self.img_width*width[1])
+        starting_point = self.test_right -left_cut
+        if starting_point >= 0:
+            mean_col_vals = np.max(self.img_subject[top_cut:bottom_cut, left_cut:right_cut], axis=0)
+            '''if it passes the threshold for quite a while then take it as left,
+            if it goes under the threshold for quite a while then take it as right'''
+            i = starting_point
+            found = False
+            while (i < (right_cut -left_cut - min_space_width)) and (not(found)): # search the end of test
+                vals = mean_col_vals[i]
+                if vals >= self.threshold:
+                    j = 0
+                    found = True
+                    for j in range(1,min_space_width +1):
+                        vals_test = mean_col_vals[i+j]
+                        if vals_test < self.threshold:
+                            i += j
+                            found = False
+                            break
+                    if found:
+                        gamma_left = i
+                        found = True
+                        break
+                else:
+                    i += 1
+        cls.bar_distance = gamma_left - starting_point
+        return cls.bar_distance
+
+    ## locate test bar
+    def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
+        if hasattr(self, 'test_right'):
+            pass
+        else:
+            self.locate_lru(step, search_width, search_lenght)
 
         ## Open the folder
-        img_center = round(left_col_index + self.cutout_w/2)
-        if self.img_height - top_row_index < self.bar_lenght: # self.img_height-top_row_index is the number of the top of the bar for cutting, need to write bar_lengt finding funciton to find cls.bar_lenght like create_mask, if it is shorter then add buffer zone
-            difference = self.bar_lenght - (self.img_height - top_row_index)
-            buffer_zone = np.zeros((difference,self.cutout_w))
-            self.img_cut = np.vstack((drawn_img,buffer_zone))
-        drawn_img[0 : bar , img_center-5 : img_center+5] = 255
+        if (self.img_height - self.test_top) < (self.bar): # self.img_height-top_row_index is the number of the top of the bar for cutting, need to write bar_lengt finding funciton to find cls.bar_lenght like create_mask, if it is shorter then add buffer zone
+            difference = self.bar - (self.img_height - self.test_top)
+            buffer_zone = np.zeros((difference,self.img_width))
+            buffer_zone_color =np.array([[[255 for rgb in range(3)]for row in range(difference)]for column in range(self.img_width)])
+            self.img_orj = np.vstack((self.img_orj,buffer_zone))
+            self.img_subject = np.vstack((self.img_subject,buffer_zone))
+            self.img_color = np.vstack((self.img_color,buffer_zone_color))
         
-        drawn_img = Image.fromarray(drawn_img)
-        drawn_img.show()
-    ### Finding the middle point of the lines by searching peaks of the bar
+        self.test_orj = deepcopy(self.img_orj) 
+        self.test_orj = self.test_orj[self.test_top : self.test_top + self.bar, self.test_left : self.test_right] 
+        
+        self.test_color = deepcopy(self.img_color)
+        self.test_color = self.test_color[self.test_top : self.test_top + self.bar, self.test_left : self.test_right,:] 
+
+        self.test_subject = deepcopy(self.img_subject)
+        self.test_subject = self.test_subject[self.test_top : self.test_top + self.bar, self.test_left : self.test_right] 
+        
+        return show(self.test_color)
+    
+    def locate_gamkl(self):
+
+        self.gamma_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + self.bar_distance:self.test_right + self.bar_distance]
+        self.gamma_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + self.bar_distance:self.test_right + self.bar_distance,:]
+
+        self.alpha_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*2):self.test_right + (self.bar_distance*2)]
+        self.alpha_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*2):self.test_right + (self.bar_distance*2),:]
+
+        self.mu_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*3):self.test_right + (self.bar_distance*3)]
+        self.mu_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*3):self.test_right + (self.bar_distance*3),:]
+
+        self.kappa_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*4):self.test_right + (self.bar_distance*4)]
+        self.kappa_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*4):self.test_right + (self.bar_distance*4),:]
+
+        self.lambda_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*5):self.test_right + (self.bar_distance*5)]
+        self.lambda_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*5):self.test_right + (self.bar_distance*5),:]
+
+    # For bar analysis
+    ## Finding the middle point of the lines by searching peaks of the bar
+    '''All find_bars are called automatically in find_lines'''
     def find_bars_sharp(self):
         lines = []
         i=0
@@ -275,18 +402,21 @@ class spep:
             else:
                 i +=1
 
-    def find_lines(self,function = 'exclusive'):
+    def find_lines(self,function = 'exclusive', range = 10):
+        self.lines = []
+
         if function == 'exclusive':
             pass
         elif function == 'inclusive':
             pass
         
         try:
-            self.line_cleaner()
+            self.line_cleaner(range)
         except:
             print('Wrong Input!')
 
     ## Eliminate close lines 
+    '''Called automatically in find_lines'''
     def line_cleaner(self, range =10):
         '''Idea:
         I would suggest to find a static-dynamic range. depends on the bar lenght. like 1/5th of the bar or smthg'''
@@ -333,7 +463,6 @@ class spep:
         else:
             print('The number of lines is not 5')
 
-
     ## Shows the bar with the approx. lenght drawn
     def draw_bar(img,bar):
         drawn_img = deepcopy(img)
@@ -347,10 +476,113 @@ class spep:
         drawn_img = Image.fromarray(drawn_img)
         drawn_img.show()
 
+    # Visualization
+    def img(self, bar, type = 'color'):
+        try:
+            if type == 'color':
+                if bar == 'img':
+                    return show(self.img_color)
+                elif bar == 'test':
+                    return show(self.test_color)
+                elif bar == 'alpha':
+                    return show(self.alpha_color)
+                elif bar == 'gamma':
+                    return show(self.gamma_color)
+                elif bar == 'mu':
+                    return show(self.mu_color)
+                elif bar == 'kappa':
+                    return show(self.kappa_color)
+                elif bar == 'lambda':
+                    return show(self.lambda_color)
+                
+            elif type == 'gray':
+                if bar == 'img':
+                    return show(self.img_orj)
+                elif bar == 'test':
+                    return show(self.test_orj)
+                elif bar == 'alpha':
+                    return show(self.alpha_orj)
+                elif bar == 'gamma':
+                    return show(self.gamma_orj)
+                elif bar == 'mu':
+                    return show(self.mu_orj)
+                elif bar == 'kappa':
+                    return show(self.kappa_orj)
+                elif bar == 'lambda':
+                    return show(self.lambda_orj)
+                
+            elif type == 'subject':
+                if bar == 'img':
+                    return show(self.img_subject)
+                elif bar == 'test':
+                    return show(self.test_subject)
+                elif bar == 'alpha':
+                    return show(self.alpha_subject)
+                elif bar == 'gamma':
+                    return show(self.gamma_subject)
+                elif bar == 'mu':
+                    return show(self.mu_subject)
+                elif bar == 'kappa':
+                    return show(self.kappa_subject)
+                elif bar == 'lambda':
+                    return show(self.lambda_subject)
+                
+        except:
+            print('Wrong Input!')
 
-    ## Visualization
-    def test(self):
-        return show(self.img_subject)
+    def matrix(self, bar, type = 'subject'):
+        try:
+            if type == 'color':
+                if bar == 'img':
+                    return self.img_color
+                elif bar == 'test':
+                    return self.test_color
+                elif bar == 'alpha':
+                    return self.alpha_color
+                elif bar == 'gamma':
+                    return self.gamma_color
+                elif bar == 'mu':
+                    return self.mu_color
+                elif bar == 'kappa':
+                    return self.kappa_color
+                elif bar == 'lambda':
+                    return self.lambda_color
+                
+            elif type == 'gray':
+                if bar == 'img':
+                    return self.img_orj
+                elif bar == 'test':
+                    return self.test_orj
+                elif bar == 'alpha':
+                    return self.alpha_orj
+                elif bar == 'gamma':
+                    return self.gamma_orj
+                elif bar == 'mu':
+                    return self.mu_orj
+                elif bar == 'kappa':
+                    return self.kappa_orj
+                elif bar == 'lambda':
+                    return self.lambda_orj
+                
+            elif type == 'subject':
+                if bar == 'img':
+                    return self.img_subject
+                elif bar == 'test':
+                    return self.test_subject
+                elif bar == 'alpha':
+                    return self.alpha_subject
+                elif bar == 'gamma':
+                    return self.gamma_subject
+                elif bar == 'mu':
+                    return self.mu_subject
+                elif bar == 'kappa':
+                    return self.kappa_subject
+                elif bar == 'lambda':
+                    return self.lambda_subject
+                
+        except:
+            print('Wrong Input!')
+
 
     def draw_lines(self,img = 'orj'):
         if img == 'orj': # orj grayscale fullscale 
@@ -360,7 +592,7 @@ class spep:
             return show(img_viz)
         
         elif img == 'cut': # orj grayscale spep part
-            img_viz = deepcopy(self.image_cut)
+            img_viz = deepcopy(self.test_orj)
             for line in self.lines:
                 img_viz[line,:] = 255
             return show(img_viz)
@@ -372,7 +604,7 @@ class spep:
             return show(img_viz)
         
         elif img == 'test': # reader img spep part
-            img_viz = deepcopy(self.img_subject)
+            img_viz = deepcopy(self.test_subject)
             for line in self.lines:
                 img_viz[line,:] = 255
             return show(img_viz)
@@ -380,7 +612,7 @@ class spep:
         else:
             print('!Wrong input in draw_lines!')
 
-# Using Matrix to visualize
+# Using show class to visualize
 class show:
 
     def __init__(self,matrix):
@@ -389,7 +621,7 @@ class show:
     def show(self):
         if len(np.shape(self.matrix))==2: # grayscale
             img_viz = Image.fromarray(self.matrix)
-            img_viz.show(self.name)
+            img_viz.show(self.matrix)
         elif len(np.shape(self.matrix))==3: # RGB
             img_viz = Image.fromarray(self.matrix,'RGB')
             img_viz.show()

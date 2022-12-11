@@ -551,50 +551,78 @@ def draw_bar(img,bar):
     drawn_img = Image.fromarray(drawn_img)
     drawn_img.show()
 
-def find_bar_dist(img,height=[1/2,1],width=[0,1/2], bar_width = 15): # read all the bars top point
+def find_bar_dist(img, height=[1/2,1], width=[0,1/2], space_width = 10): # read all the bars top point
     row_len, col_len = np.shape(img)
     u = col_len*height[0]
     d = col_len*height[1]
     l = row_len*width[0]
     r = row_len*width[1]
-    mean_col_vals = np.mean(img[u:d,l:r], axis=0)
-    '''if it passes the threshold for quite a while then take it as left,
-    if it goes under the threshold for quite a while then take it as right'''
-    list_left = []
-    list_right = []
-    i = 0
-    switch = False
-    while (i < (row_len - bar_width)) and (not(switch)):
-        col_l = mean_col_vals[i]
+    starting_point = self.test_left -l
+    if starting_point >= 0:
+        mean_col_vals = np.mean(img[u:d,l:r], axis=0)
+        '''if it passes the threshold for quite a while then take it as left,
+        if it goes under the threshold for quite a while then take it as right'''
+        i = starting_point
+        found = False
+        while (i < (r-l - space_width)) and (not(found)): # search the end of test
+            vals = mean_col_vals[i]
+            if vals >= threshold:
+                j = 0
+                found = True
+                for j in range(1,space_width +1):
+                    vals_test = mean_col_vals[i+j]
+                    if vals_test < threshold:
+                        i += j
+                        found = False
+                        break
+                if found:
+                    gamma_left = i
+                    found = True
+                    break
+            else:
+                i += 1
+    cls.bar_distance = gamma_left - starting_point
 
-        if col_l > threshold:
-            switch = True
-            for j in range(1 , bar_width):
-                col_test = mean_col_vals[i + j]
-                if col_test < threshold:
-                    '''Summary
-                    skips to the background since we know all of the col_l will fail until there.
-                    '''
-                    skip_step = j
-                    i += skip_step + 1 
-                    switch = False
-                    break  # Turn back to while loop with index starting after i+j
+        i = 0
+        switch = False
+        while (i < (r-l - bar_width)) and (not(switch)):
+            col_val_bar = mean_col_vals[i]
+
+            if col_val_bar > threshold: # search the start of the next bar
+                switch = True
+                for j in range(1 , bar_width +1): # test if the bar is consistent
+                    col_bar_test = mean_col_vals[i + j]
+                    if col_bar_test < threshold: 
+                        '''Summary
+                        skips to the background since we know all of the col_l will fail until there.
+                        '''
+                        skip_step = j
+                        i += skip_step + 1 
+                        switch = False
+                        break  # Turn back to while loop with index starting after i+j
+                if switch: # we found the starting point of the bar
+                    list_left.append(i)
+                    k = i +bar_width +1
+                    while k< r-l - space_width: # Now search the end of the bar
+                        col_val_space = mean_col_vals[k]
+                        if (col_val_space < threshold):
+                            for m in range(1, space_width +1): 
+                                col_space_test = mean_col_vals[k + m]
+                                if col_space_test > threshold:
+                                    pass
+            else:
+                i += 1
         else:
-            i += 1
+            if switch:
+                left_col_index = i        
     else:
-        if switch:
-            left_col_index = i        
+        print('couldn\'t locate the bar distance! Try to use a different image, or widen the searching area!')
 
     ### Righthand of the bar
     '''Summary
     Starting from the bar width, where we left off, so we do not need to recalculate the whole process
     '''
-    for j in range(left_col_index + bar_width, column_len): 
-        col_test = img_mean_col[j]
-
-        if (col_test < threshold):
-            right_col_index = j-1
-            break
+    
 
 # Check which line is reliable to be the middle point
 '''Not working efficiently'''
