@@ -228,9 +228,9 @@ class spep:
             self.is_ref = True
             self.test_color = deepcopy(self.img_color)
             self.test_color = self.test_color[self.test_top : self.test_top + self.bar , self.test_left : self.test_right,:]
-            return self.test_color
 
-            cls.bar_mask = 5 
+            cls.bar_mask = np.ones(self.bar,self.cutout_w)
+            return self.test_color
         except:
             print('the lenght of the bar couldn\'t be found')
 
@@ -244,35 +244,19 @@ class spep:
         else:
             self.locate_lru()
 
-        top_cut = round(self.img_height*height[0])
-        bottom_cut = round(self.img_height*height[1])
         left_cut = round(self.img_width*width[0])
         right_cut = round(self.img_width*width[1])
         starting_point = self.test_right -left_cut
         if starting_point >= 0:
-            mean_col_vals = np.mean(self.img_subject[top_cut:bottom_cut, left_cut:right_cut], axis=0)
+            mean_col_vals = np.mean(self.img_subject[:, left_cut:right_cut], axis=0)
             '''if it passes the threshold for quite a while then take it as left,
             if it goes under the threshold for quite a while then take it as right'''
             i = starting_point
-            found = False
-            while (i < (right_cut -left_cut - min_space_width)) and (not(found)): # search the end of test
-                vals = mean_col_vals[i]
-                if vals >= self.threshold:
-                    found = True
-                    for j in range(1,min_space_width +1):
-                        vals_test = mean_col_vals[i+j]
-                        if vals_test < self.threshold:
-                            i += j
-                            found = False
-                            break
-                    if found:
-                        gamma_left = i
-                        found = True
-                        break
-                else:
-                    i += 1
-        cls.bar_distance = gamma_left - starting_point + self.cutout_w
-        return cls.bar_distance, self.threshold, starting_point, left_cut, right_cut
+            folder_max = 0
+            while i < right_cut - left_cut:
+                cutout = self.img_subject[self.test_top:self.test_bottom, i:i+self.cutout_w]
+                folder = np.multiply(cutout,self.bar_mask)
+                folder_value = np.sum(folder)
 
     ## locate test bar
     def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
