@@ -154,16 +154,17 @@ class spep:
 
     ## locates left right and top of the test bar
     '''Automaticly called in the class'''
-    # ! use img_orj maybe? it will give better boundary
+    #? take out self.test_right there and calculate it by yourself(like self.test_bottom). otherwise all the cuts would be same size cut.
+    # ? use img_orj maybe? it will give better boundary, but change threshold for that
     def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
     
-        width_cut = self.img_width *search_width[1]
-        column_cut = self.img_height *search_lenght[1]
+        width_cut = round(self.img_width *search_width[1])
+        column_cut = round(self.img_height *search_lenght[1])
 
         folder_max = 0
-        i = search_width[0]
+        i = round(self.img_width*search_width[0])
         while i<width_cut:
-            j = search_lenght[0]
+            j = round(self.img_height*search_lenght[0])
             while j< column_cut:
                 cutout = self.img_subject[i: i+self.cutout_h, j: j+self.cutout_w]
                 folder = np.multiply(cutout,self.mask)
@@ -181,9 +182,12 @@ class spep:
         right_col_index = left_col_index + self.cutout_w
     
         self.test_left, self.test_right, self.test_top = left_col_index, right_col_index, top_row_index
+       
+        #? do i need it? I can just use self.cutout_w/2 for center
         self.test_center = round(self.test_left + self.cutout_w/2)
 
     ## Bar lenght
+    #! cls.bar_mask yaratmak ne kadar iyi olur?
     @classmethod
     def bar_lenght(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
         
@@ -225,12 +229,14 @@ class spep:
             self.test_color = deepcopy(self.img_color)
             self.test_color = self.test_color[self.test_top : self.test_top + self.bar , self.test_left : self.test_right,:]
             return self.test_color
+
+            cls.bar_mask = 5 
         except:
             print('the lenght of the bar couldn\'t be found')
 
     @classmethod
     #test-gamma distance
-    # ! Fix, reads badly
+    # ! Fix, reads badly, maybe cut the height by bar
     def find_bar_dist(cls, self, height=[1/2,1], width=[0,1/2], min_space_width = 10): # read all the bars top point
         
         if hasattr(self,'test_right'):
@@ -244,7 +250,7 @@ class spep:
         right_cut = round(self.img_width*width[1])
         starting_point = self.test_right -left_cut
         if starting_point >= 0:
-            mean_col_vals = np.max(self.img_subject[top_cut:bottom_cut, left_cut:right_cut], axis=0)
+            mean_col_vals = np.mean(self.img_subject[top_cut:bottom_cut, left_cut:right_cut], axis=0)
             '''if it passes the threshold for quite a while then take it as left,
             if it goes under the threshold for quite a while then take it as right'''
             i = starting_point
@@ -252,7 +258,6 @@ class spep:
             while (i < (right_cut -left_cut - min_space_width)) and (not(found)): # search the end of test
                 vals = mean_col_vals[i]
                 if vals >= self.threshold:
-                    j = 0
                     found = True
                     for j in range(1,min_space_width +1):
                         vals_test = mean_col_vals[i+j]
@@ -266,8 +271,8 @@ class spep:
                         break
                 else:
                     i += 1
-        cls.bar_distance = gamma_left - starting_point
-        return cls.bar_distance
+        cls.bar_distance = gamma_left - starting_point + self.cutout_w
+        return cls.bar_distance, self.threshold, starting_point, left_cut, right_cut
 
     ## locate test bar
     def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
@@ -296,6 +301,7 @@ class spep:
         
         return show(self.test_color)
     
+    #! test.top+ bar = self.test_bottom
     def locate_gamkl(self):
 
         self.gamma_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + self.bar_distance:self.test_right + self.bar_distance]
@@ -315,6 +321,7 @@ class spep:
 
     # For bar analysis
     ## Finding the middle point of the lines by searching peaks of the bar
+    # ! need to transform to obj.var
     '''All find_bars are called automatically in find_lines'''
     def find_bars_sharp(self):
         lines = []
@@ -402,6 +409,7 @@ class spep:
             else:
                 i +=1
 
+    # ! need to be written
     def find_lines(self,function = 'exclusive', range = 10):
         self.lines = []
 
@@ -450,6 +458,7 @@ class spep:
             self.lines = new_lines
 
     # Returns distances of the lines
+    # ! hasnt transformed to obj, check if it is working
     def line_dist(lines):
         if len(lines)==5:
             dist_dict ={}
@@ -464,17 +473,9 @@ class spep:
             print('The number of lines is not 5')
 
     ## Shows the bar with the approx. lenght drawn
-    def draw_bar(img,bar):
-        drawn_img = deepcopy(img)
-        img_height, img_width = np.shape(drawn_img)
-        img_center = round(img_width/2)
-        if img_height < bar:
-            difference = bar - img_height
-            buffer_zone = np.zeros((difference,img_width))
-            drawn_img = np.vstack((drawn_img,buffer_zone))
-        drawn_img[0 : bar , img_center-5 : img_center+5] = 255
-        drawn_img = Image.fromarray(drawn_img)
-        drawn_img.show()
+    # ! Will read the bars and create a cls/var graph, which gives the graphs
+    def bar_value(self):
+        pass
 
     # Visualization
     def img(self, bar, type = 'color'):
@@ -583,7 +584,7 @@ class spep:
         except:
             print('Wrong Input!')
 
-
+    # ! need to be reworked. check if everything is okay or not
     def draw_lines(self,img = 'orj'):
         if img == 'orj': # orj grayscale fullscale 
             img_viz = deepcopy(self.img_orj)
