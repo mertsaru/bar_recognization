@@ -18,7 +18,7 @@ class spep:
         self.is_ref = False
         self.is_mask = False
 
-    ## Creating matrix from the image
+    # Creating matrix from the image
     def read(self, edge_multiplier = 500, amplifier = 1.3):
         '''Summary: edge multiplier
         Edge multiplier makes contrast with background and the lines. It makes easier to detect the lines.
@@ -48,9 +48,10 @@ class spep:
         ## Taking the shape of the matrix for finding bars
         self.img_height, self.img_width = np.shape(self.img_subject)
 
+    # Finding bars   
     ## Creating albumin mask
     @classmethod
-    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer = 0):
+    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -15):
         
         ## Finding the width of the albumin
         img_col_mean = self.img_subject.mean(axis=0)
@@ -134,28 +135,18 @@ class spep:
                 bottom_row_index = j
                 break
         try:
-            cls.cutout_h = bottom_row_index - top_row_index +buffer
-            cls.cutout_w = right_col_index - left_col_index +buffer
-            cls.mask = np.ones((cls.cutout_h,cls.cutout_w))
+            cls.cutout ={
+                'height': bottom_row_index - top_row_index +buffer_top,
+                'width': right_col_index - left_col_index +buffer_side
+            }
             cls.mask_name = self.name
-            self.is_mask = True
             return show(self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:])
         except:
             print('Couldn\'t find the mask! Try a different image.' )
 
-    ## Creating derivative list for searching peaks with find_peak_* functions
-    '''Automaticly called in the class'''
-    def derivative(self):
-        row_vals = self.img_subject.mean(axis=1)
-        delta_row = []
-        for i in range(len(row_vals) -1):
-            delta_row.append(row_vals[i+1] - row_vals[i])
-        self.delta_row = delta_row
-
     ## locates left right and top of the test bar
     '''Automaticly called in the class'''
-    #? take out self.test_right there and calculate it by yourself(like self.test_bottom). otherwise all the cuts would be same size cut.
-    # ? use img_orj maybe? it will give better boundary, but change threshold for that
+    #? take out self.test['right'] there and calculate it by yourself(like self.test_bottom). otherwise all the cuts would be same size cut.
     def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
     
         width_cut = round(self.img_width *search_width[1])
@@ -166,9 +157,8 @@ class spep:
         while i<width_cut:
             j = round(self.img_height*search_lenght[0])
             while j< column_cut:
-                cutout = self.img_subject[i: i+self.cutout_h, j: j+self.cutout_w]
-                folder = np.multiply(cutout,self.mask)
-                folder_value = folder.sum()
+                cutout = self.img_subject[i: i+self.cutout['height'], j: j+self.cutout['width']]
+                folder_value = cutout.sum()
                 if folder_value > folder_max:
                     folder_max = folder_value
                     top_row_index = i
@@ -179,27 +169,28 @@ class spep:
             else:
                 i += step
         
-        right_col_index = left_col_index + self.cutout_w
+        right_col_index = left_col_index + self.cutout['width']
     
-        self.test_left, self.test_right, self.test_top = left_col_index, right_col_index, top_row_index
-       
-        #? do i need it? I can just use self.cutout_w/2 for center
-        self.test_center = round(self.test_left + self.cutout_w/2)
+        self.test ={
+            'left': left_col_index,
+            'right': right_col_index,
+            'top': top_row_index
+        }
 
     ## Bar lenght
     #! cls.bar_mask yaratmak ne kadar iyi olur?
     @classmethod
     def bar_lenght(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
         
-        if hasattr(self,'test_right'):
+        if hasattr(self,'test'):
             pass
         else:
             self.locate_lru(step, search_width, search_lenght)
         
         img_mx = deepcopy(self.img_subject)
-        img_cut = img_mx[:,self.test_left : self.test_right]
-        img_mean_row_left = img_cut[:,0:round(self.cutout_w/2)].mean(axis=1)
-        img_mean_row_right = img_cut[:,round(self.cutout_w/2):-1].mean(axis=1)
+        img_cut = img_mx[:,self.test['left'] : self.test['right']]
+        img_mean_row_left = img_cut[:,0:round(self.cutout['width']/2)].mean(axis=1)
+        img_mean_row_right = img_cut[:,round(self.cutout['width']/2):-1].mean(axis=1)
 
         i = 0
         switch = False
@@ -223,87 +214,199 @@ class spep:
                 bottom_row_index = self.img_height -1  -i
             
         try:
-            cls.bar = bottom_row_index - self.test_top
+            cls.bar = bottom_row_index - self.test['top']
             cls.bar_name = self.name
-            self.is_ref = True
-            self.test_color = deepcopy(self.img_color)
-            self.test_color = self.test_color[self.test_top : self.test_top + self.bar , self.test_left : self.test_right,:]
+            self.test_color = self.img_color[self.test['top'] : self.test['top'] + self.bar , self.test['left'] : self.test['right'],:]
 
-            cls.bar_mask = np.ones(self.bar,self.cutout_w)
             return self.test_color
         except:
             print('the lenght of the bar couldn\'t be found')
 
-    @classmethod
-    #test-gamma distance
-    # ! Fix, reads badly, maybe cut the height by bar
-    def find_bar_dist(cls, self, height=[1/2,1], width=[0,1/2], min_space_width = 10): # read all the bars top point
+    # bar distance finder
+    def find_bar_dist(self, left_bar, search_width): # read all the bars top point
         
-        if hasattr(self,'test_right'):
-            pass
-        else:
-            self.locate_lru()
-
-        left_cut = round(self.img_width*width[0])
-        right_cut = round(self.img_width*width[1])
-        starting_point = self.test_right -left_cut
+        starting_point = left_bar['right']
+        ending_point = starting_point +(search_width*self.cutout['width'])
         if starting_point >= 0:
-            mean_col_vals = np.mean(self.img_subject[:, left_cut:right_cut], axis=0)
-            '''if it passes the threshold for quite a while then take it as left,
-            if it goes under the threshold for quite a while then take it as right'''
             i = starting_point
             folder_max = 0
-            while i < right_cut - left_cut:
-                cutout = self.img_subject[self.test_top:self.test_bottom, i:i+self.cutout_w]
-                folder = np.multiply(cutout,self.bar_mask)
-                folder_value = np.sum(folder)
-
-    ## locate test bar
+            while i < min(ending_point, self.img_width - self.cutout['width']):
+                cutout = self.img_subject[self.test['top'] : self.test['top'] +self.bar , i:i+self.cutout['width']]
+                folder_value = cutout.sum()
+                if folder_value > folder_max:
+                    folder_max = folder_value
+                    next_bar_left = i
+                i += 3
+            
+            distance = next_bar_left - left_bar['left']
+            return distance
+    
+    ## Test
     def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
-        if hasattr(self, 'test_right'):
+       
+        if hasattr(self, 'test'):
             pass
         else:
             self.locate_lru(step, search_width, search_lenght)
 
+        self.test['bottom'] = self.test['top'] + self.bar
         ## Open the folder
-        if (self.img_height - self.test_top) < (self.bar): # self.img_height-top_row_index is the number of the top of the bar for cutting, need to write bar_lengt finding funciton to find cls.bar_lenght like create_mask, if it is shorter then add buffer zone
-            difference = self.bar - (self.img_height - self.test_top)
+        ### If image size is not enough
+        if (self.img_height - self.test['top']) < (self.bar): 
+            difference = self.bar - (self.img_height - self.test['top'])
             buffer_zone = np.zeros((difference,self.img_width))
             buffer_zone_color =np.array([[[255 for rgb in range(3)]for row in range(difference)]for column in range(self.img_width)])
             self.img_orj = np.vstack((self.img_orj,buffer_zone))
             self.img_subject = np.vstack((self.img_subject,buffer_zone))
             self.img_color = np.vstack((self.img_color,buffer_zone_color))
         
-        self.test_orj = deepcopy(self.img_orj) 
-        self.test_orj = self.test_orj[self.test_top : self.test_top + self.bar, self.test_left : self.test_right] 
+        self.test_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right']] 
         
-        self.test_color = deepcopy(self.img_color)
-        self.test_color = self.test_color[self.test_top : self.test_top + self.bar, self.test_left : self.test_right,:] 
+        self.test_color = self.img_color[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right'],:] 
 
-        self.test_subject = deepcopy(self.img_subject)
-        self.test_subject = self.test_subject[self.test_top : self.test_top + self.bar, self.test_left : self.test_right] 
+        self.test_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right']] 
         
         return show(self.test_color)
     
-    #! test.top+ bar = self.test_bottom
+    ## Gamma
+    def locate_gamma(self, search_width=1):
+        
+        if hasattr(self,'test'):
+            pass
+        else:
+            self.locate_test()
+
+        distance = self.find_bar_dist(self.test, search_width)
+        left = self.test['left'] +distance
+        right = left + self.cutout['width']
+        self.gamma= {
+            'left': left,
+            'right': right
+        }
+
+        self.gamma_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        self.gamma_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
+
+        self.gamma_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        return show(self.gamma_color)
+
+    ## Alpha
+    def locate_alpha(self, search_width=1):
+
+        if hasattr(self,'gamma'):
+            pass
+        else:
+            self.locate_gamma()
+
+        distance = self.find_bar_dist(self.gamma, search_width)
+        left = self.gamma['left'] +distance
+        right = left + self.cutout['width']
+        self.alpha= {
+            'left': left,
+            'right': right
+        }
+
+        self.alpha_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        self.alpha_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
+
+        self.alpha_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        return show(self.alpha_color)
+    
+    ## Mu 
+    def locate_mu(self, search_width=1):
+
+        if hasattr(self,'alpha'):
+            pass
+        else:
+            self.locate_alpha()
+
+        distance = self.find_bar_dist(self.alpha, search_width)
+        left = self.alpha['left'] +distance
+        right = left + self.cutout['width']
+        self.mu= {
+            'left': left,
+            'right': right
+        }
+
+        self.mu_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        self.mu_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
+
+        self.mu_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        return show(self.mu_color)
+    
+    ## Kappa
+    def locate_kappa(self, search_width=1):
+      
+        if hasattr(self,'mu'):
+            pass
+        else:
+            self.locate_mu()
+
+        distance = self.find_bar_dist(self.mu, search_width)
+        left = self.mu['left'] +distance
+        right = left + self.cutout['width']
+        self.kappa= {
+            'left': left,
+            'right': right
+        }
+
+        self.kappa_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        self.kappa_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
+
+        self.kappa_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        return show(self.kappa_color)
+
+    ## Lambda
+    def locate_lambda(self, search_width=1):
+
+        if hasattr(self,'kappa'):
+            pass
+        else:
+            self.locate_kappa()
+
+        distance = self.find_bar_dist(self.kappa, search_width)
+        left = self.kappa['left'] +distance
+        right = left + self.cutout['width']
+        self.Lambda= {
+            'left': left,
+            'right': right
+        }
+
+        self.lambda_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        self.lambda_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
+
+        self.lambda_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        
+        return show(self.lambda_color)
+
     def locate_gamkl(self):
 
-        self.gamma_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + self.bar_distance:self.test_right + self.bar_distance]
-        self.gamma_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + self.bar_distance:self.test_right + self.bar_distance,:]
-
-        self.alpha_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*2):self.test_right + (self.bar_distance*2)]
-        self.alpha_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*2):self.test_right + (self.bar_distance*2),:]
-
-        self.mu_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*3):self.test_right + (self.bar_distance*3)]
-        self.mu_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*3):self.test_right + (self.bar_distance*3),:]
-
-        self.kappa_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*4):self.test_right + (self.bar_distance*4)]
-        self.kappa_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*4):self.test_right + (self.bar_distance*4),:]
-
-        self.lambda_orj = deepcopy(self.img_orj)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*5):self.test_right + (self.bar_distance*5)]
-        self.lambda_color = deepcopy(self.img_color)[self.test_top:self.test_top + self.bar, self.test_left + (self.bar_distance*5):self.test_right + (self.bar_distance*5),:]
-
+        self.locate_gamma()
+        self.locate_alpha()
+        self.locate_mu()
+        self.locate_kappa()
+        self.locate_lambda()
+        
     # For bar analysis
+    ## Creating derivative list for searching peaks with find_peak_* functions
+    '''Automaticly called in the class'''
+    #? why it is working on img_subject
+    def derivative(self):
+        row_vals = self.img_subject.mean(axis=1)
+        delta_row = []
+        for i in range(len(row_vals) -1):
+            delta_row.append(row_vals[i+1] - row_vals[i])
+        self.delta_row = delta_row
+
     ## Finding the middle point of the lines by searching peaks of the bar
     # ! need to transform to obj.var
     '''All find_bars are called automatically in find_lines'''
@@ -407,7 +510,7 @@ class spep:
         except:
             print('Wrong Input!')
 
-    ## Eliminate close lines 
+    ### Eliminate close lines 
     '''Called automatically in find_lines'''
     def line_cleaner(self, range =10):
         '''Idea:
@@ -441,7 +544,7 @@ class spep:
 
             self.lines = new_lines
 
-    # Returns distances of the lines
+    ## Returns distances of the lines
     # ! hasnt transformed to obj, check if it is working
     def line_dist(lines):
         if len(lines)==5:
@@ -456,12 +559,100 @@ class spep:
         else:
             print('The number of lines is not 5')
 
+    ## defines the bars reliability of position
+    #! not working
+    def bar_reliability(img_mx, lines, error_function ='linear', max_dist =14):
+        '''Parameters:
+            error_function:
+                has 2 values: linear, tanh(gauss)
+                describes which function we are using to calculate the error
+            max_dist:
+                describes how far we want to calculate our error. If the difference between top(bottom) of the line to the end,
+                it chooses that distance instead
+        '''
+
+        '''!Cleaning!
+        If it would be a class, I wouldn't need to re-calculate row_vals and 
+        it would be easier to implement lines, img_mx, img_name
+        and it would be easier to store reliability of the lines
+        '''
+        '''Cleaning
+        you are repeating line_names with distances, put them into parameters.'''
+        line_name ={
+            0 : 'albumin',
+            1 : 'alpha1',
+            2 : 'alpha2',
+            3 : 'beta',
+            4 : 'gamma'
+            }    
+
+        row_vals = img_mx.mean(axis=1)
+        col_len = len(row_vals)
+        
+        # Finding the distance value
+        if (lines[0] < max_dist) or (lines[-1] +max_dist > col_len -1): #if line ±n passes the border.
+            distance = min(lines[0], col_len - lines[-1] -1)
+        else:
+            distance = max_dist
+
+        '''!!IDEA!!
+        Maybe it would be better if lines are too close to top or bottom,
+        we can decrease it's reliability to a constant or with a multiplier.
+
+        If it is not bright enough, we can decrease the reliability
+        '''
+        # Finding all the reliability
+        validity_dict = {}
+        for i in range(len(lines)):
+            brightness = row_vals[lines[i]]
+            # Finding individual error
+            err = 0
+            for dist in range(1,distance+1):
+                new_err = abs(row_vals[lines[i] -dist] - row_vals[lines[i] +dist])
+                err += new_err
+            
+            '''!Idea
+            dividing 255 is taking every individual bar into same ground,
+            but not all bars have same luminosity, error detection would not be equal
+            try dividing into the line color
+            
+            Somehow better performance, works good with large max_dist
+            but not enough, also error gets out of the 0-1 boundary
+
+            Since you are using luminosity, dont use the amplified version,
+            since amplified version is not correct interpretation.
+            Use original grayscale version.
+            '''
+            '''Summary: mean error
+            We are dividing error into distance to take the mean of the error,
+            then we also divide it to 255 to normalize the error between 0-1,
+            after that we also divide the error to the luminosity of the given line, since all lines are not in same luminosity, so the differences would be greater for lines that have bigger luminosity than others.'''
+            mean_error = err /(brightness*255*distance) 
+            
+            # Turn error into reliability
+            '''!Small error: Gauss
+            not reliable
+            erf(gauss) function is <~1 when it is at 1, we are not calculating error fully'''
+            if (error_function == 'linear'):
+                reliability = 1- mean_error
+                
+            #elif (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
+            #    reliability = 1-erf(mean_error)
+            # Add reliability to the dict
+                validity_dict[line_name[i]] = reliability        
+        
+        return validity_dict
+
+    # Visualization
     ## Shows the bar with the approx. lenght drawn
     # ! Will read the bars and create a cls/var graph, which gives the graphs
     def bar_value(self):
         pass
 
-    # Visualization
+    @staticmethod
+    def show(matrix):
+        return show(matrix)
+
     def img(self, bar, type = 'color'):
         try:
             if type == 'color':

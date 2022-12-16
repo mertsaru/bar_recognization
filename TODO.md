@@ -1,22 +1,24 @@
 # TODO
 
-distance function fix
+## Analysis
 
-## ratio
+### ratio
 
 test all the ratios without gamma
 write meaning to ratio std
 
-## find lines
+### find lines
 
 test all find_bars combinations
 test all find_bars combination performances
 
-## Implement bar cuts
+## Visualization
 
-2 bars distance
+## locate
 
-## bar reading
+locate leri class method yap. uzunluk boylece sabit olacak
+
+### bar reading
 
 Transform the row.mean reading
 plot the trasform
