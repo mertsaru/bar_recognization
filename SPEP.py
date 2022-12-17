@@ -9,9 +9,11 @@ line_names ={
             2 : 'alpha2',
             3 : 'beta',
             4 : 'gamma'
-            }    
+}    
 
 class spep:
+
+    bar_distance ={}
 
     def __init__(self, name):
         self.name = name
@@ -49,9 +51,10 @@ class spep:
         self.img_height, self.img_width = np.shape(self.img_subject)
 
     # Finding bars   
+
     ## Creating albumin mask
     @classmethod
-    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -15):
+    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -10):
         
         ## Finding the width of the albumin
         img_col_mean = self.img_subject.mean(axis=0)
@@ -139,48 +142,14 @@ class spep:
                 'height': bottom_row_index - top_row_index +buffer_top,
                 'width': right_col_index - left_col_index +buffer_side
             }
-            cls.mask_name = self.name
+            cls.albumin_finder_name = self.name
             return show(self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:])
         except:
             print('Couldn\'t find the mask! Try a different image.' )
 
-    ## locates left right and top of the test bar
-    '''Automaticly called in the class'''
-    #? take out self.test['right'] there and calculate it by yourself(like self.test_bottom). otherwise all the cuts would be same size cut.
-    def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
-    
-        width_cut = round(self.img_width *search_width[1])
-        column_cut = round(self.img_height *search_lenght[1])
-
-        folder_max = 0
-        i = round(self.img_width*search_width[0])
-        while i<width_cut:
-            j = round(self.img_height*search_lenght[0])
-            while j< column_cut:
-                cutout = self.img_subject[i: i+self.cutout['height'], j: j+self.cutout['width']]
-                folder_value = cutout.sum()
-                if folder_value > folder_max:
-                    folder_max = folder_value
-                    top_row_index = i
-                    left_col_index = j
-                    j += step
-                else:
-                    j += step
-            else:
-                i += step
-        
-        right_col_index = left_col_index + self.cutout['width']
-    
-        self.test ={
-            'left': left_col_index,
-            'right': right_col_index,
-            'top': top_row_index
-        }
-
-    ## Bar lenght
-    #! cls.bar_mask yaratmak ne kadar iyi olur?
+    ## Finding bar lenght
     @classmethod
-    def bar_lenght(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
+    def bar_lenght_finder(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
         
         if hasattr(self,'test'):
             pass
@@ -215,16 +184,18 @@ class spep:
             
         try:
             cls.bar = bottom_row_index - self.test['top']
-            cls.bar_name = self.name
+            cls.bar_lenght_finder_name = self.name
             self.test_color = self.img_color[self.test['top'] : self.test['top'] + self.bar , self.test['left'] : self.test['right'],:]
 
-            return self.test_color
+            return show(self.test_color)
         except:
             print('the lenght of the bar couldn\'t be found')
+    
+    ## Finding positions
 
-    # bar distance finder
-    def find_bar_dist(self, left_bar, search_width): # read all the bars top point
-        
+    ### bar distance finder
+    def find_bar_dist(self, left_bar, search_width):
+        '''Uses mask to find bars'''
         starting_point = left_bar['right']
         ending_point = starting_point +(search_width*self.cutout['width'])
         if starting_point >= 0:
@@ -241,7 +212,7 @@ class spep:
             distance = next_bar_left - left_bar['left']
             return distance
     
-    ## Test
+    ### Test
     def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
        
         if hasattr(self, 'test'):
@@ -268,8 +239,10 @@ class spep:
         
         return show(self.test_color)
     
-    ## Gamma
-    def locate_gamma(self, search_width=1):
+    ### Finds the distance between two bars next to each other
+    ### Gamma
+    @classmethod
+    def locate_gamma(cls,self, search_width=1):
         
         if hasattr(self,'test'):
             pass
@@ -277,100 +250,76 @@ class spep:
             self.locate_test()
 
         distance = self.find_bar_dist(self.test, search_width)
-        left = self.test['left'] +distance
+        left = self.test['left'] + distance
         right = left + self.cutout['width']
-        self.gamma= {
+        self.gamma = {
             'left': left,
             'right': right
         }
+        cls.bar_distance['gamma'] = distance
 
-        self.gamma_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        self.gamma_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
-
-        self.gamma_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        return show(self.gamma_color)
-
-    ## Alpha
-    def locate_alpha(self, search_width=1):
+    ### Alpha
+    @classmethod
+    def locate_alpha(cls,self, search_width=1):
 
         if hasattr(self,'gamma'):
             pass
         else:
-            self.locate_gamma()
+            cls.locate_gamma(self)
 
         distance = self.find_bar_dist(self.gamma, search_width)
-        left = self.gamma['left'] +distance
+        left = self.gamma['left'] + distance
         right = left + self.cutout['width']
-        self.alpha= {
+        self.alpha = {
             'left': left,
             'right': right
-        }
+        } 
+        cls.bar_distance['alpha'] = distance
 
-        self.alpha_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        self.alpha_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
-
-        self.alpha_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        return show(self.alpha_color)
-    
-    ## Mu 
-    def locate_mu(self, search_width=1):
+    ### Mu 
+    @classmethod
+    def locate_mu(cls,self, search_width=1):
 
         if hasattr(self,'alpha'):
             pass
         else:
-            self.locate_alpha()
+            cls.locate_alpha(self)
 
         distance = self.find_bar_dist(self.alpha, search_width)
-        left = self.alpha['left'] +distance
+        left = self.alpha['left'] + distance
         right = left + self.cutout['width']
-        self.mu= {
+        self.mu = {
             'left': left,
             'right': right
-        }
-
-        self.mu_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        self.mu_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
-
-        self.mu_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        return show(self.mu_color)
-    
-    ## Kappa
-    def locate_kappa(self, search_width=1):
+        } 
+        cls.bar_distance['mu'] = distance
+  
+    ### Kappa
+    @classmethod
+    def locate_kappa(cls,self, search_width=1):
       
         if hasattr(self,'mu'):
             pass
         else:
-            self.locate_mu()
+            cls.locate_mu(self)
 
         distance = self.find_bar_dist(self.mu, search_width)
-        left = self.mu['left'] +distance
+        left = self.mu['left'] + distance
         right = left + self.cutout['width']
-        self.kappa= {
+        self.kappa = {
             'left': left,
             'right': right
-        }
+        } 
+        cls.bar_distance['kappa'] = distance
 
-        self.kappa_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        self.kappa_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
-
-        self.kappa_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
-        
-        return show(self.kappa_color)
-
-    ## Lambda
-    def locate_lambda(self, search_width=1):
+    ### Lambda
+    @classmethod
+    def locate_lambda(cls,self, search_width=1):
 
         if hasattr(self,'kappa'):
             pass
         else:
-            self.locate_kappa()
+            cls.locate_kappa(self)
 
         distance = self.find_bar_dist(self.kappa, search_width)
         left = self.kappa['left'] +distance
@@ -379,22 +328,104 @@ class spep:
             'left': left,
             'right': right
         }
+        cls.bar_distance['lambda'] = distance
 
-        self.lambda_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+    ### All
+    @classmethod
+    def bar_finder(cls,self):
+        try:
+
+            cls.bar_finder_name = self.name
+            cls.locate_lambda(self)
+        except:
+            print('Invalid input!')
+
+    ## Using one reference to create bar finder
+    def reference(self):
+        self.create_albumin_mask(self)
+        self.bar_lenght_finder(self)
+        self.bar_finder(self)
+
+    ## locates left right and top of the test bar
+    def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
+    
+        width_cut = round(self.img_width *search_width[1])
+        column_cut = round(self.img_height *search_lenght[1])
+
+        folder_max = 0
+        i = round(self.img_width*search_width[0])
+        while i<width_cut:
+            j = round(self.img_height*search_lenght[0])
+            while j< column_cut:
+                cutout = self.img_subject[i: i+self.cutout['height'], j: j+self.cutout['width']]
+                folder_value = cutout.sum()
+                if folder_value > folder_max:
+                    folder_max = folder_value
+                    top_row_index = i
+                    left_col_index = j
+                    j += step
+                else:
+                    j += step
+            else:
+                i += step
         
-        self.lambda_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:] 
+        right_col_index = left_col_index + self.cutout['width']
+    
+        self.test ={
+            'left': left_col_index,
+            'right': right_col_index,
+            'top': top_row_index
+        }
 
-        self.lambda_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+    ## locates all the bars in an image 
+    def locate_bars(self):
+
+        if hasattr(self,"test['bottom']"):
+            pass
+        else:
+            self.locate_test()
+
+
+        self.gamma = {
+            'left': self.test['left'] + self.bar_distance['gamma'],
+            'right': self.test['right'] + self.bar_distance['gamma']
+        }
+
+        self.alpha = {
+            'left': self.gamma['left'] + self.bar_distance['alpha'],
+            'right': self.gamma['right'] + self.bar_distance['alpha']
+        }
         
-        return show(self.lambda_color)
+        self.mu = {
+            'left': self.alpha['left'] + self.bar_distance['mu'],
+            'right': self.alpha['right'] + self.bar_distance['mu']
+        }
 
-    def locate_gamkl(self):
+        self.kappa = {
+            'left': self.mu['left'] + self.bar_distance['kappa'],
+            'right': self.mu['right'] + self.bar_distance['kappa']
+        }
 
-        self.locate_gamma()
-        self.locate_alpha()
-        self.locate_mu()
-        self.locate_kappa()
-        self.locate_lambda()
+        self.Lambda = {
+            'left': self.kappa['left'] + self.bar_distance['lambda'],
+            'right': self.kappa['right'] + self.bar_distance['lambda']
+        }
+
+
+        self.gamma_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right']] 
+        self.gamma_color = self.img_color[self.test['top'] : self.test['bottom'], self.gamma['left'] : self.gamma['right'],:]
+        
+        self.alpha_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.alpha['left'] : self.alpha['right']] 
+        self.alpha_color = self.img_color[self.test['top'] : self.test['bottom'], self.alpha['left'] : self.alpha['right'],:]
+        
+        self.mu_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.mu['left'] : self.mu['right']] 
+        self.mu_color = self.img_color[self.test['top'] : self.test['bottom'], self.mu['left'] : self.mu['right'],:]
+        
+        self.kappa_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.kappa['left'] : self.kappa['right']] 
+        self.kappa_color = self.img_color[self.test['top'] : self.test['bottom'], self.kappa['left'] : self.kappa['right'],:]
+        
+        self.lambda_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.Lambda['left'] : self.Lambda['right']] 
+        self.lambda_color = self.img_color[self.test['top'] : self.test['bottom'], self.Lambda['left'] : self.Lambda['right'],:]
         
     # For bar analysis
     ## Creating derivative list for searching peaks with find_peak_* functions
