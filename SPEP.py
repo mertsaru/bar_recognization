@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 from skimage import filters
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
 line_names ={
             0 : 'albumin',
@@ -140,10 +141,11 @@ class spep:
         try:
             cls.cutout ={
                 'height': bottom_row_index - top_row_index +buffer_top,
-                'width': right_col_index - left_col_index +buffer_side
+                'width': right_col_index - left_col_index +buffer_side,
+                'mid': round((right_col_index - left_col_index +buffer_side)/2)           
             }
             cls.albumin_finder_name = self.name
-            return show(self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:])
+            return spep.show_img(self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:])
         except:
             print('Couldn\'t find the mask! Try a different image.' )
 
@@ -187,7 +189,7 @@ class spep:
             cls.bar_lenght_finder_name = self.name
             self.test_color = self.img_color[self.test['top'] : self.test['top'] + self.bar , self.test['left'] : self.test['right'],:]
 
-            return show(self.test_color)
+            return spep.show_img(self.test_color)
         except:
             print('the lenght of the bar couldn\'t be found')
     
@@ -237,7 +239,7 @@ class spep:
 
         self.test_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right']] 
         
-        return show(self.test_color)
+        return spep.show_img(self.test_color)
     
     ### Finds the distance between two bars next to each other
     ### Gamma
@@ -334,7 +336,6 @@ class spep:
     @classmethod
     def bar_finder(cls,self):
         try:
-
             cls.bar_finder_name = self.name
             cls.locate_lambda(self)
         except:
@@ -426,8 +427,40 @@ class spep:
         
         self.lambda_orj = self.img_orj[self.test['top'] : self.test['bottom'], self.Lambda['left'] : self.Lambda['right']] 
         self.lambda_color = self.img_color[self.test['top'] : self.test['bottom'], self.Lambda['left'] : self.Lambda['right'],:]
+
+    # Bar values
+    ## Bar graph
+    def graph_creator(self,bar,range = 5):
+        if bar == 'test':
+            bar_value = deepcopy(self.test_orj)
+        elif bar == 'gamma':
+            bar_value = deepcopy(self.gamma_orj)
+        elif bar == 'alpha':
+            bar_value = deepcopy(self.alpha_orj)
+        elif bar == 'mu':
+            bar_value = deepcopy(self.mu_orj)
+        elif bar == 'kappa':
+            bar_value = deepcopy(self.kappa_orj)
+        elif bar == 'lambda':
+            bar_value = deepcopy(self.lambda_orj)
+
+        bar_value = bar_value[:,self.cutout['mid'] - range: self.cutout['mid'] + range]
+        graph_value = bar_value.mean(axis=1)
         
-    # For bar analysis
+        return graph_value
+
+    ## Bars' graph values
+    def find_graphs(self):
+        self.graphs ={
+        'test': self.graph_creator('test'),
+        'gamma': self.graph_creator('gamma'),
+        'alpha': self.graph_creator('alpha'),
+        'mu': self.graph_creator('mu'),
+        'kappa': self.graph_creator('kappa'),
+        'lambda': self.graph_creator('lambda')
+        }
+
+    # Bar analysis
     ## Creating derivative list for searching peaks with find_peak_* functions
     '''Automaticly called in the class'''
     #? why it is working on img_subject
@@ -442,14 +475,12 @@ class spep:
     # ! need to transform to obj.var
     '''All find_bars are called automatically in find_lines'''
     def find_bars_sharp(self):
-        lines = []
         i=0
         while i < (len(self.img_height_vals_alter) -1):
             if (self.delta_row[i] >= 0) and (self.delta_row[i] <= 1):
                 for j in range(i, len(self.img_height_vals_alter) -1):
                     if self.delta_row[j] < 0:
                         self.lines.append(j-1)
-                        lines.append(j-1)
                         i = j+1
                         break
                     else:
@@ -527,17 +558,28 @@ class spep:
             else:
                 i +=1
 
-    # ! need to be written
-    def find_lines(self,function = 'exclusive', range = 10):
+    ## finds lines
+    def find_lines(self,function, range = 10):
+        if hasattr(self,'delta_row'):
+            pass
+        else:
+            self.derivative()
+        
         self.lines = []
 
-        if function == 'exclusive':
-            pass
-        elif function == 'inclusive':
-            pass
+        if 'sharp' in function:
+            self.find_bars_sharp()
+        if 'sharp_v2' in function:
+            self.find_bars_sharp_v2()
+        if 'sharp_v3' in function:
+            self.find_bars_sharp_v3()
+        if 'smooth' in function:
+            self.find_bars_smooth()
+        if 'dent' in function:
+            self.find_bars_dent()
         
         try:
-            self.line_cleaner(range)
+            self.line_cleaner()
         except:
             print('Wrong Input!')
 
@@ -676,119 +718,43 @@ class spep:
 
     # Visualization
     ## Shows the bar with the approx. lenght drawn
-    # ! Will read the bars and create a cls/var graph, which gives the graphs
-    def bar_value(self):
-        pass
 
     @staticmethod
-    def show(matrix):
-        return show(matrix)
+    def show_img(matrix):
+        if len(np.shape(matrix))==2: # grayscale
+            img_viz = Image.fromarray(matrix)
+            img_viz.show(matrix)
+        elif len(np.shape(matrix))==3: # RGB
+            img_viz = Image.fromarray(matrix,'RGB')
+            img_viz.show()
+        else:
+            print("Matrix is not transformable")
 
-    def img(self, bar, type = 'color'):
-        try:
-            if type == 'color':
-                if bar == 'img':
-                    return show(self.img_color)
-                elif bar == 'test':
-                    return show(self.test_color)
-                elif bar == 'alpha':
-                    return show(self.alpha_color)
-                elif bar == 'gamma':
-                    return show(self.gamma_color)
-                elif bar == 'mu':
-                    return show(self.mu_color)
-                elif bar == 'kappa':
-                    return show(self.kappa_color)
-                elif bar == 'lambda':
-                    return show(self.lambda_color)
-                
-            elif type == 'gray':
-                if bar == 'img':
-                    return show(self.img_orj)
-                elif bar == 'test':
-                    return show(self.test_orj)
-                elif bar == 'alpha':
-                    return show(self.alpha_orj)
-                elif bar == 'gamma':
-                    return show(self.gamma_orj)
-                elif bar == 'mu':
-                    return show(self.mu_orj)
-                elif bar == 'kappa':
-                    return show(self.kappa_orj)
-                elif bar == 'lambda':
-                    return show(self.lambda_orj)
-                
-            elif type == 'subject':
-                if bar == 'img':
-                    return show(self.img_subject)
-                elif bar == 'test':
-                    return show(self.test_subject)
-                elif bar == 'alpha':
-                    return show(self.alpha_subject)
-                elif bar == 'gamma':
-                    return show(self.gamma_subject)
-                elif bar == 'mu':
-                    return show(self.mu_subject)
-                elif bar == 'kappa':
-                    return show(self.kappa_subject)
-                elif bar == 'lambda':
-                    return show(self.lambda_subject)
-                
-        except:
-            print('Wrong Input!')
-
-    def matrix(self, bar, type = 'subject'):
-        try:
-            if type == 'color':
-                if bar == 'img':
-                    return self.img_color
-                elif bar == 'test':
-                    return self.test_color
-                elif bar == 'alpha':
-                    return self.alpha_color
-                elif bar == 'gamma':
-                    return self.gamma_color
-                elif bar == 'mu':
-                    return self.mu_color
-                elif bar == 'kappa':
-                    return self.kappa_color
-                elif bar == 'lambda':
-                    return self.lambda_color
-                
-            elif type == 'gray':
-                if bar == 'img':
-                    return self.img_orj
-                elif bar == 'test':
-                    return self.test_orj
-                elif bar == 'alpha':
-                    return self.alpha_orj
-                elif bar == 'gamma':
-                    return self.gamma_orj
-                elif bar == 'mu':
-                    return self.mu_orj
-                elif bar == 'kappa':
-                    return self.kappa_orj
-                elif bar == 'lambda':
-                    return self.lambda_orj
-                
-            elif type == 'subject':
-                if bar == 'img':
-                    return self.img_subject
-                elif bar == 'test':
-                    return self.test_subject
-                elif bar == 'alpha':
-                    return self.alpha_subject
-                elif bar == 'gamma':
-                    return self.gamma_subject
-                elif bar == 'mu':
-                    return self.mu_subject
-                elif bar == 'kappa':
-                    return self.kappa_subject
-                elif bar == 'lambda':
-                    return self.lambda_subject
-                
-        except:
-            print('Wrong Input!')
+    def show_graph(self,bar):
+        bar_height = range(self.bar)
+        if bar == 'test':
+            plt.plot(255-self.graphs['test'],bar_height[::-1])
+            plt.title(f'{self.name} test graph')
+        elif bar == 'gamma':
+            plt.plot(255-self.graphs['gamma'],bar_height[::-1])
+            plt.title(f'{self.name} gamma graph')
+        elif bar == 'alpha':
+            plt.plot(255-self.graphs['alpha'],bar_height[::-1])
+            plt.title(f'{self.name} alpha graph')
+        elif bar == 'mu':
+            plt.plot(255-self.graphs['mu'],bar_height[::-1])
+            plt.title(f'{self.name} mu graph')
+        elif bar == 'kappa':
+            plt.plot(255-self.graphs['kappa'],bar_height[::-1])
+            plt.title(f'{self.name} kappa graph')
+        elif bar == 'lambda':
+            plt.plot(255-self.graphs['lambda'],bar_height[::-1])
+            plt.title(f'{self.name} lambda graph')
+        
+        plt.xlabel('value')
+        plt.ylabel('lenght')
+        plt.axis([0,255,0,self.bar])
+        plt.show()
 
     # ! need to be reworked. check if everything is okay or not
     def draw_lines(self,img = 'orj'):
@@ -796,41 +762,25 @@ class spep:
             img_viz = deepcopy(self.img_orj)
             for line in self.lines:
                 img_viz[line+self.top,self.left:self.right] = 255
-            return show(img_viz)
+            return img_viz
         
         elif img == 'cut': # orj grayscale spep part
             img_viz = deepcopy(self.test_orj)
             for line in self.lines:
                 img_viz[line,:] = 255
-            return show(img_viz)
+            return img_viz
         
         elif img == 'color': # orj color fullscale
             img_viz = deepcopy(self.img_color)
             for line in self.lines:
                 img_viz[line+self.top,self.left:self.right,:] = 0
-            return show(img_viz)
+            return img_viz
         
         elif img == 'test': # reader img spep part
             img_viz = deepcopy(self.test_subject)
             for line in self.lines:
                 img_viz[line,:] = 255
-            return show(img_viz)
+            return img_viz
         
         else:
             print('!Wrong input in draw_lines!')
-
-# Using show class to visualize
-class show:
-
-    def __init__(self,matrix):
-        self.matrix = matrix
-    
-    def show(self):
-        if len(np.shape(self.matrix))==2: # grayscale
-            img_viz = Image.fromarray(self.matrix)
-            img_viz.show(self.matrix)
-        elif len(np.shape(self.matrix))==3: # RGB
-            img_viz = Image.fromarray(self.matrix,'RGB')
-            img_viz.show()
-        else:
-            print("Image is not readable")
