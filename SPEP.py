@@ -145,7 +145,7 @@ class spep:
                 'mid': round((right_col_index - left_col_index +buffer_side)/2)           
             }
             cls.albumin_finder_name = self.name
-            return spep.show_img(self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:])
+            return self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:]
         except:
             print('Couldn\'t find the mask! Try a different image.' )
 
@@ -188,8 +188,6 @@ class spep:
             cls.bar = bottom_row_index - self.test['top']
             cls.bar_lenght_finder_name = self.name
             self.test_color = self.img_color[self.test['top'] : self.test['top'] + self.bar , self.test['left'] : self.test['right'],:]
-
-            return spep.show_img(self.test_color)
         except:
             print('the lenght of the bar couldn\'t be found')
     
@@ -238,8 +236,6 @@ class spep:
         self.test_color = self.img_color[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right'],:] 
 
         self.test_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right']] 
-        
-        return spep.show_img(self.test_color)
     
     ### Finds the distance between two bars next to each other
     ### Gamma
@@ -732,28 +728,83 @@ class spep:
 
     def show_graph(self,bar):
         bar_height = range(self.bar)
-        if bar == 'test':
-            plt.plot(255-self.graphs['test'],bar_height[::-1])
-            plt.title(f'{self.name} test graph')
-        elif bar == 'gamma':
-            plt.plot(255-self.graphs['gamma'],bar_height[::-1])
-            plt.title(f'{self.name} gamma graph')
-        elif bar == 'alpha':
-            plt.plot(255-self.graphs['alpha'],bar_height[::-1])
-            plt.title(f'{self.name} alpha graph')
-        elif bar == 'mu':
-            plt.plot(255-self.graphs['mu'],bar_height[::-1])
-            plt.title(f'{self.name} mu graph')
-        elif bar == 'kappa':
-            plt.plot(255-self.graphs['kappa'],bar_height[::-1])
-            plt.title(f'{self.name} kappa graph')
-        elif bar == 'lambda':
-            plt.plot(255-self.graphs['lambda'],bar_height[::-1])
-            plt.title(f'{self.name} lambda graph')
+
+        lenght = 0
+        if 'test' in bar:
+            lenght +=1
+        if 'gamma' in bar:
+            lenght +=1
+        if 'alpha' in bar:
+            lenght +=1
+        if 'mu' in bar:
+            lenght +=1
+        if 'kappa' in bar:
+            lenght +=1
+        if 'lambda' in bar:
+            lenght +=1
         
-        plt.xlabel('value')
-        plt.ylabel('lenght')
-        plt.axis([0,255,0,self.bar])
+        count = 1
+        if 'test' in bar:
+            plt.subplot(1,lenght,count)
+            count +=1
+            plt.plot(255-self.graphs['test'],bar_height[::-1])
+            plt.title(f'test')
+            plt.xticks(np.arange(0,255,50))
+            plt.xlabel('value')
+            plt.axis([0,255,0,self.bar])
+            plt.yticks([])
+
+        if 'gamma' in bar:
+            plt.subplot(1,lenght,count)
+            count +=1
+            plt.plot(255-self.graphs['gamma'],bar_height[::-1])
+            plt.title(f'gamma')
+            plt.xlabel('value')
+            plt.xticks(np.arange(0,255,50))
+            plt.axis([0,255,0,self.bar])
+            plt.yticks([])
+
+        if 'alpha' in bar:
+            plt.subplot(1,lenght,count)
+            count +=1
+            plt.plot(255-self.graphs['alpha'],bar_height[::-1])
+            plt.title(f'alpha')
+            plt.xlabel('value')
+            plt.xticks(np.arange(0,255,50))
+            plt.axis([0,255,0,self.bar])
+            plt.yticks([])
+
+        if 'mu' in bar:
+            plt.subplot(1,lenght,count)
+            count +=1
+            plt.plot(255-self.graphs['mu'],bar_height[::-1])
+            plt.title(f'mu')
+            plt.xlabel('value')
+            plt.xticks(np.arange(0,255,50))
+            plt.axis([0,255,0,self.bar])
+            plt.yticks([])
+
+        if 'kappa' in bar:
+            plt.subplot(1,lenght,count)
+            count +=1
+            plt.plot(255-self.graphs['kappa'],bar_height[::-1])
+            plt.title(f'kappa')
+            plt.xlabel('value')
+            plt.xticks(np.arange(0,255,50))
+            plt.axis([0,255,0,self.bar])
+            plt.yticks([])
+
+        if 'lambda' in bar:
+            plt.subplot(1,lenght,count)
+            count +=1
+            plt.plot(255-self.graphs['lambda'],bar_height[::-1])
+            plt.title(f'lambda')
+            plt.xlabel('value')
+            plt.xticks(np.arange(0,255,50))
+            plt.axis([0,255,0,self.bar])
+            plt.yticks([])
+
+        plt.suptitle(self.name)
         plt.show()
 
     # ! need to be reworked. check if everything is okay or not
