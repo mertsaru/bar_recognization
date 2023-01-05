@@ -23,11 +23,7 @@ class spep:
 
     # Creating matrix from the image
     def read(self, edge_multiplier = 500, amplifier = 1.3):
-        '''Summary: edge multiplier
-        Edge multiplier makes contrast with background and the lines. It makes easier to detect the lines.
-        Edge multiplier should not be great, otherwise it creates noise near all the lines.
-        '''
-
+        
         ## Open Img
         img = Image.open(self.name)
 
@@ -70,13 +66,7 @@ class spep:
                 switch = True
                 for j in range(1 , bar_width):
                     col_test = img_col_mean[i + j]
-                    '''!Idea
-                    Here we can also use derivative to find where the big change is, but not for the bottom
-                    '''
                     if col_test < self.threshold:
-                        '''Summary
-                        skips since we know all of the col_l will fail until there.
-                        '''
                         skip_step = j
                         i += skip_step + 1 
                         switch = False
@@ -90,9 +80,6 @@ class spep:
                 print('No left part of the albumin found')
 
         ### Righthand of the bar
-        '''Summary
-        Starting from the bar width, where we left off, so we do not need to recalculate the whole process
-        '''
         for j in range(left_col_index + bar_width, self.img_width): 
             col_test = img_col_mean[j]
 
@@ -105,9 +92,6 @@ class spep:
         img_row_mean = img_cutted_col_mx.mean(axis=1)
 
         ### Top of the albumin
-        '''Summary
-        We are using same threshold we used to find width of the bar, since threshold is a good number to divide black background and white lines.
-        '''
         i = 0
         switch = False
         while (i < (self.img_height - bar_height)) and (not(switch)):
@@ -193,25 +177,6 @@ class spep:
     
     ## Finding positions
 
-    ### bar distance finder
-    def find_bar_dist(self, left_bar, search_width):
-        '''Uses mask to find bars'''
-        starting_point = left_bar['right']
-        ending_point = starting_point +(search_width*self.cutout['width'])
-        if starting_point >= 0:
-            i = starting_point
-            folder_max = 0
-            while i < min(ending_point, self.img_width - self.cutout['width']):
-                cutout = self.img_subject[self.test['top'] : self.test['top'] +self.bar , i:i+self.cutout['width']]
-                folder_value = cutout.sum()
-                if folder_value > folder_max:
-                    folder_max = folder_value
-                    next_bar_left = i
-                i += 3
-            
-            distance = next_bar_left - left_bar['left']
-            return distance
-    
     ### Test
     def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
        
@@ -238,6 +203,24 @@ class spep:
         self.test_subject = self.img_subject[self.test['top'] : self.test['bottom'], self.test['left'] : self.test['right']] 
     
     ### Finds the distance between two bars next to each other
+    def find_bar_dist(self, left_bar, search_width): # Uses mask to find bars
+        
+        starting_point = left_bar['right']
+        ending_point = starting_point +(search_width*self.cutout['width'])
+        if starting_point >= 0:
+            i = starting_point
+            folder_max = 0
+            while i < min(ending_point, self.img_width - self.cutout['width']):
+                cutout = self.img_subject[self.test['top'] : self.test['top'] +self.bar , i:i+self.cutout['width']]
+                folder_value = cutout.sum()
+                if folder_value > folder_max:
+                    folder_max = folder_value
+                    next_bar_left = i
+                i += 3
+            
+            distance = next_bar_left - left_bar['left']
+            return distance
+    
     ### Gamma
     @classmethod
     def locate_gamma(cls,self, search_width=1):
@@ -339,9 +322,9 @@ class spep:
 
     ## Using one reference to create bar finder
     def reference(self):
-        self.create_albumin_mask(self)
-        self.bar_lenght_finder(self)
-        self.bar_finder(self)
+        self.create_albumin_mask(self) # Finding albumin mask
+        self.bar_lenght_finder(self) # Finding height of the bars
+        self.bar_finder(self) # Finding distances of the bars
 
     ## locates left right and top of the test bar
     def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
@@ -458,7 +441,6 @@ class spep:
 
     # Bar analysis
     ## Creating derivative list for searching peaks with find_peak_* functions
-    '''Automaticly called in the class'''
     #? why it is working on img_subject
     def derivative(self):
         row_vals = self.img_subject.mean(axis=1)
@@ -468,7 +450,7 @@ class spep:
         self.delta_row = delta_row
 
     ## Finding the middle point of the lines by searching peaks of the bar
-    # ! need to transform to obj.var
+    #todo: need to transform to obj.var
     '''All find_bars are called automatically in find_lines'''
     def find_bars_sharp(self):
         i=0
@@ -555,6 +537,7 @@ class spep:
                 i +=1
 
     ## finds lines
+    #todo: need to take all combinations of these functions, and if still there are difference, maybe different combinations find different bar lines. so also need to compare combinations findings (not the number of findings but difference of findings)
     def find_lines(self,function, range = 10):
         if hasattr(self,'delta_row'):
             pass
@@ -580,10 +563,12 @@ class spep:
             print('Wrong Input!')
 
     ### Eliminate close lines 
-    '''Called automatically in find_lines'''
+    #* Idea
     def line_cleaner(self, range =10):
         '''Idea:
-        I would suggest to find a static-dynamic range. depends on the bar lenght. like 1/5th of the bar or smthg'''
+        I would suggest to find a static-dynamic range. depends on the bar lenght. like 1/5th of the bar or smthg
+        if range = None
+            range = self.bar/10'''
         ### getting rid of duplicate lines
         lines = self.lines
         lines.sort()
@@ -614,7 +599,7 @@ class spep:
             self.lines = new_lines
 
     ## Returns distances of the lines
-    # ! hasnt transformed to obj, check if it is working
+    #todo: hasnt transformed to obj, check if it is working
     def line_dist(lines):
         if len(lines)==5:
             dist_dict ={}
@@ -714,7 +699,6 @@ class spep:
 
     # Visualization
     ## Shows the bar with the approx. lenght drawn
-
     @staticmethod
     def show_img(matrix):
         if len(np.shape(matrix))==2: # grayscale
@@ -810,7 +794,7 @@ class spep:
         plt.suptitle(self.name)
         plt.show()
 
-    # ! need to be reworked. check if everything is okay or not
+    #todo: need to be reworked. check if everything is okay or not
     def draw_lines(self,img = 'orj'):
         if img == 'orj': # orj grayscale fullscale 
             img_viz = deepcopy(self.img_orj)
