@@ -1,6 +1,6 @@
 # Cache
 __pycache__
-
+.idea
 # Images
 datasets
 *jpg
@@ -9,9 +9,11 @@ datasets
 # Skip notes
 *info*
 Notes.txt
+TODO.*
 
-# Test codes
+# Test and old codes
 *test*
+*old*
 
 # Referance folder
 ref
