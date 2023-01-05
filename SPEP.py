@@ -729,6 +729,9 @@ class spep:
     def show_graph(self,bar):
         bar_height = range(self.bar)
 
+        if 'all' in bar:
+            bar = ['test','gamma','alpha','mu','kappa','lambda']
+
         lenght = 0
         if 'test' in bar:
             lenght +=1
