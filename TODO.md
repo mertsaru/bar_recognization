@@ -22,3 +22,7 @@ locate leri class method yap. uzunluk boylece sabit olacak
 
 Transform the row.mean reading
 plot the trasform
+
+### othrers
+
+delete try except

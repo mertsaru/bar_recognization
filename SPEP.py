@@ -18,8 +18,6 @@ class spep:
 
     def __init__(self, name):
         self.name = name
-        self.is_ref = False
-        self.is_mask = False
 
     # Creating matrix from the image
     def read(self, edge_multiplier = 500, amplifier = 1.3):
@@ -51,8 +49,12 @@ class spep:
 
     ## Creating albumin mask
     @classmethod
-    def create_albumin_mask(cls,self, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -10):
-        
+    def albumin_reference(cls,self, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -10):
+        if hasattr(self,'img_subject'):
+            pass
+        else:
+            self.read()
+
         ## Finding the width of the albumin
         img_col_mean = self.img_subject.mean(axis=0)
 
@@ -122,20 +124,19 @@ class spep:
             if (row_test < self.threshold):
                 bottom_row_index = j
                 break
-        try:
+
             cls.cutout ={
                 'height': bottom_row_index - top_row_index +buffer_top,
                 'width': right_col_index - left_col_index +buffer_side,
                 'mid': round((right_col_index - left_col_index +buffer_side)/2)           
             }
-            cls.albumin_finder_name = self.name
-            return self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:]
-        except:
-            print('Couldn\'t find the mask! Try a different image.' )
+            cls.albumin_refname = self.name
 
+            return self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:]
+    
     ## Finding bar lenght
     @classmethod
-    def bar_lenght_finder(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
+    def barLenght_reference(cls,self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25], min_bar_height = 10):
         
         if hasattr(self,'test'):
             pass
@@ -179,7 +180,11 @@ class spep:
 
     ### Test
     def locate_test(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
-       
+        if hasattr(self,'bar'):
+            pass
+        else:
+            print('first determine bar lenght by using spep.barLenght_reference')
+            return
         if hasattr(self, 'test'):
             pass
         else:
@@ -329,6 +334,16 @@ class spep:
     ## locates left right and top of the test bar
     def locate_lru(self, step =3, search_width = [0, 0.25], search_lenght = [0, 0.25]):
     
+        if hasattr(self,'cutout'):
+            pass
+        else:
+            print('first determine albumin mask by using spep.albumin_reference')
+            return
+        if hasattr(self,'img_subject'):
+            pass
+        else:
+            self.read()
+
         width_cut = round(self.img_width *search_width[1])
         column_cut = round(self.img_height *search_lenght[1])
 
@@ -359,7 +374,11 @@ class spep:
 
     ## locates all the bars in an image 
     def locate_bars(self):
-
+        if hasattr(self,'bar_finder_name'):
+            pass
+        else:
+            print('first determine bar distance by using spep.bar_finder')
+            return
         if hasattr(self,"test['bottom']"):
             pass
         else:
@@ -441,7 +460,7 @@ class spep:
 
     # Bar analysis
     ## Creating derivative list for searching peaks with find_peak_* functions
-    #? why it is working on img_subject
+    #? why it is working on img_subject, use graph?
     def derivative(self):
         row_vals = self.img_subject.mean(axis=1)
         delta_row = []
@@ -538,7 +557,7 @@ class spep:
 
     ## finds lines
     #todo: need to take all combinations of these functions, and if still there are difference, maybe different combinations find different bar lines. so also need to compare combinations findings (not the number of findings but difference of findings)
-    def find_lines(self,function, range = 10):
+    def find_lines(self,function, range = 10, combine_lines = True):
         if hasattr(self,'delta_row'):
             pass
         else:
@@ -557,11 +576,9 @@ class spep:
         if 'dent' in function:
             self.find_bars_dent()
         
-        try:
+        if combine_lines:
             self.line_cleaner()
-        except:
-            print('Wrong Input!')
-
+        
     ### Eliminate close lines 
     #* Idea
     def line_cleaner(self, range =10):
@@ -596,7 +613,7 @@ class spep:
                 i +=1
                 break
 
-            self.lines = new_lines
+        self.lines = new_lines
 
     ## Returns distances of the lines
     #todo: hasnt transformed to obj, check if it is working
