@@ -19,6 +19,7 @@ class spep:
     def __init__(self, name):
         self.name = name
 
+    
     # Creating matrix from the image
     def read(self, edge_multiplier = 500, amplifier = 1.3):
         
@@ -45,11 +46,18 @@ class spep:
         ## Taking the shape of the matrix for finding bars
         self.img_height, self.img_width = np.shape(self.img_subject)
 
-    # Finding bars   
-
+    # Finding bars  
+ 
+    ## Evaluate find bars
+    def evaluate(self):
+        if hasattr(self,'Lambda'):
+            pass
+        else:
+            self.find_graphs()
+    
     ## Creating albumin mask
     @classmethod
-    def albumin_reference(cls,self, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -10):
+    def albumin_reference(cls,self, give_information = True, bar_height=20, bar_width =15, buffer_top=0, buffer_side = -10):
         if hasattr(self,'img_subject'):
             pass
         else:
@@ -78,7 +86,7 @@ class spep:
         else:
             if switch:
                 left_col_index = i        
-            else:
+            elif give_information:
                 print('No left part of the albumin found')
 
         ### Righthand of the bar
@@ -114,7 +122,7 @@ class spep:
         else:
             if switch:
                 top_row_index = i
-            else:
+            elif give_information:
                 print('No upper part of the bar found')
 
         ### Bottom of the albumin
@@ -125,14 +133,14 @@ class spep:
                 bottom_row_index = j
                 break
 
-            cls.cutout ={
-                'height': bottom_row_index - top_row_index +buffer_top,
-                'width': right_col_index - left_col_index +buffer_side,
-                'mid': round((right_col_index - left_col_index +buffer_side)/2)           
-            }
-            cls.albumin_refname = self.name
+        cls.cutout ={
+            'height': bottom_row_index - top_row_index +buffer_top,
+            'width': right_col_index - left_col_index +buffer_side,
+            'mid': round((right_col_index - left_col_index +buffer_side)/2)           
+        }
+        cls.albumin_refname = self.name
 
-            return self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:]
+        return self.img_color[top_row_index:bottom_row_index,left_col_index:right_col_index,:]
     
     ## Finding bar lenght
     @classmethod
@@ -169,13 +177,11 @@ class spep:
             if switch:
                 bottom_row_index = self.img_height -1  -i
             
-        try:
-            cls.bar = bottom_row_index - self.test['top']
-            cls.bar_lenght_finder_name = self.name
-            self.test_color = self.img_color[self.test['top'] : self.test['top'] + self.bar , self.test['left'] : self.test['right'],:]
-        except:
-            print('the lenght of the bar couldn\'t be found')
-    
+        
+        cls.bar = bottom_row_index - self.test['top']
+        cls.bar_lenght_finder_name = self.name
+        self.test_color = self.img_color[self.test['top'] : self.test['top'] + self.bar , self.test['left'] : self.test['right'],:]
+        
     ## Finding positions
 
     ### Test
@@ -319,16 +325,14 @@ class spep:
     ### All
     @classmethod
     def bar_finder(cls,self):
-        try:
-            cls.bar_finder_name = self.name
-            cls.locate_lambda(self)
-        except:
-            print('Invalid input!')
+        
+        cls.bar_finder_name = self.name
+        cls.locate_lambda(self)
 
     ## Using one reference to create bar finder
     def reference(self):
-        self.create_albumin_mask(self) # Finding albumin mask
-        self.bar_lenght_finder(self) # Finding height of the bars
+        self.albumin_reference(self) # Finding albumin mask
+        self.barLenght_reference(self) # Finding height of the bars
         self.bar_finder(self) # Finding distances of the bars
 
     ## locates left right and top of the test bar
@@ -449,43 +453,51 @@ class spep:
 
     ## Bars' graph values
     def find_graphs(self):
+        if hasattr(self,'Lambda'):
+            pass
+        else:
+            self.locate_bars()
+
         self.graphs ={
-        'test': self.graph_creator('test'),
-        'gamma': self.graph_creator('gamma'),
-        'alpha': self.graph_creator('alpha'),
-        'mu': self.graph_creator('mu'),
-        'kappa': self.graph_creator('kappa'),
-        'lambda': self.graph_creator('lambda')
+        'test': 255 - self.graph_creator('test'),
+        'gamma': 255 - self.graph_creator('gamma'),
+        'alpha': 255 - self.graph_creator('alpha'),
+        'mu': 255 - self.graph_creator('mu'),
+        'kappa': 255 - self.graph_creator('kappa'),
+        'lambda': 255 - self.graph_creator('lambda')
         }
 
     # Bar analysis
     ## Creating derivative list for searching peaks with find_peak_* functions
-    #? why it is working on img_subject, use graph?
-    def derivative(self):
-        row_vals = self.img_subject.mean(axis=1)
+    #self.graphs['test']
+    def derivative(self,img):
+        
+        if img == 'subject':
+            row_vals = self.test_subject.mean(axis=1)
+        elif img == 'grayscale':
+            row_vals = self.graphs['test']    
+        
         delta_row = []
         for i in range(len(row_vals) -1):
             delta_row.append(row_vals[i+1] - row_vals[i])
         self.delta_row = delta_row
 
     ## Finding the middle point of the lines by searching peaks of the bar
-    #todo: need to transform to obj.var
-    '''All find_bars are called automatically in find_lines'''
-    def find_bars_sharp(self):
+    def find_peak_sharp(self):
         i=0
-        while i < (len(self.img_height_vals_alter) -1):
+        while i < (len(self.bar) -1):
             if (self.delta_row[i] >= 0) and (self.delta_row[i] <= 1):
-                for j in range(i, len(self.img_height_vals_alter) -1):
+                for j in range(i, len(self.bar) -1):
                     if self.delta_row[j] < 0:
                         self.lines.append(j-1)
                         i = j+1
                         break
                     else:
-                        i = len(self.img_height_vals_alter)
+                        i = len(self.bar)
             else:
                 i += 1    
 
-    def find_bars_sharp_v2(self):
+    def find_peak_sharp_v2(self):
         i = 0
         while i < len(self.delta_row)-1:
             if (self.delta_row[i] >= 0 ) and (self.delta_row[i+1] <= 0):
@@ -494,7 +506,7 @@ class spep:
             else:
                 i += 1
 
-    def find_bars_sharp_v3(self):
+    def find_peak_sharp_v3(self):
         i = 0
         while i < len(self.delta_row)-1:
             if (self.delta_row[i] > 0) and (self.delta_row[i] < 1) and (self.delta_row[i+1] > -1) and (self.delta_row[i+1] < 0) :
@@ -503,52 +515,47 @@ class spep:
             else:
                 i += 1
 
-    def find_bars_smooth(self, n=5):
-        '''Description n:
-        n chooses how far we want the function monotonically increasing or decreasing.
+    def find_peak_smooth(self, smoothRange):
+        '''Description smoothRange:
+        smoothRange chooses how far we want the function monotonically increasing or decreasing.
         '''
         i = 0
-        while i < len(self.delta_row) -n:
+        while i < len(self.delta_row) -smoothRange:
             if (self.delta_row[i] >0) and (self.delta_row[i] <1): # sign i >= 0
                 switch = False
                 
                 ## Front loop
-                for k in range(i+1,i+n+1):
-                    if self.delta_row[k] >= 0: # if sign i+n and i are same
+                for k in range(i+1,i+smoothRange+1):
+                    if self.delta_row[k] >= 0: # if sign i+smoothRange and i are same
                         switch = True
                         if k == i+1:
                             i += 1 
                         else:
-                            i = k +n # start from k+n since we know k is positive but k-1 is negative, and Back-loop will fail until k
+                            i = k +smoothRange # start from k+smoothRange since we know k is positive but k-1 is negative, and Back-loop will fail until k
                         break
-                if switch: # Turn back to while loop with i = k+n
+                if switch: # Turn back to while loop with i = k+smoothRange
                     continue
 
-                '''Explanation: Why range j is taken like this
-                If we took the range j like Front-loop range(i-n,i),
-                then we would be checking signs of j from i-n to i-1,
-                which I think, it would be slower, since there are some positives next to negative.
-                '''
                 ## Back Loop
-                for j in range(1,n+1):
+                for j in range(1,smoothRange+1):
                     if self.delta_row[i-j] < 0: # if sign i-j and i are not same
                         switch = True
-                        i = i -j +n+1 # start from there since until that point everything will fail with back-loop because of i-jth point
+                        i = i -j +smoothRange+1 # start from there since until that point everything will fail with back-loop because of i-jth point
                         break
-                if switch: # Turns back to while loop with i = i-j+n+1
+                if switch: # Turns back to while loop with i = i-j+smoothRange+1
                     continue
                 
                 self.lines.append(i)
-                i = i+n+1 # If we passed until here, we know i+1 until i+n are all negative so they will fail anyways
+                i = i+smoothRange+1 # If we passed until here, we know i+1 until i+smoothRange are all negative so they will fail anyways
             else:
                 i += 1
         
-    def find_bars_dent(self, n=10):
-        i = n
-        while i< len(self.delta_row)-n:
+    def find_peak_dent(self, dentRange):
+        i = dentRange
+        while i< len(self.delta_row)-dentRange:
             if (self.delta_row[i] >0) and (self.delta_row[i+1] <0):
-                left_mean = np.mean(self.delta_row[i-n:i+1])
-                right_mean = np.mean(self.delta_row[i+1:i+n+1])
+                left_mean = np.mean(self.delta_row[i-dentRange:i+1])
+                right_mean = np.mean(self.delta_row[i+1:i+dentRange+1])
                 if (left_mean >0) and (right_mean <0):
                     self.lines.append(i)
                 i += 1
@@ -557,28 +564,51 @@ class spep:
 
     ## finds lines
     #todo: need to take all combinations of these functions, and if still there are difference, maybe different combinations find different bar lines. so also need to compare combinations findings (not the number of findings but difference of findings)
-    def find_lines(self,function, range = 10, combine_lines = True):
+    def find_lines(self,*function, smoothRange = 5, dentRange = 10, combine_lines = True, increase_spec = True):
+        
         if hasattr(self,'delta_row'):
             pass
         else:
-            self.derivative()
+            self.derivative('subject')
         
         self.lines = []
 
         if 'sharp' in function:
-            self.find_bars_sharp()
+            self.find_peak_sharp()
         if 'sharp_v2' in function:
-            self.find_bars_sharp_v2()
+            self.find_peak_sharp_v2()
         if 'sharp_v3' in function:
-            self.find_bars_sharp_v3()
+            self.find_peak_sharp_v3()
         if 'smooth' in function:
-            self.find_bars_smooth()
+            self.find_peak_smooth(smoothRange)
         if 'dent' in function:
-            self.find_bars_dent()
+            self.find_peak_dent(dentRange)
         
         if combine_lines:
             self.line_cleaner()
-        
+
+        if (increase_spec) and (len(self.lines) != 5):
+            
+            self.derivative('grayscale')
+
+            self.lines = []
+
+            if 'sharp' in function:
+                self.find_peak_sharp()
+            if 'sharp_v2' in function:
+                self.find_peak_sharp_v2()
+            if 'sharp_v3' in function:
+                self.find_peak_sharp_v3()
+            if 'smooth' in function:
+                self.find_peak_smooth(smoothRange)
+            if 'dent' in function:
+                self.find_peak_dent(dentRange)
+            
+            if combine_lines:
+                self.line_cleaner()
+
+
+
     ### Eliminate close lines 
     #* Idea
     def line_cleaner(self, range =10):
@@ -616,18 +646,16 @@ class spep:
         self.lines = new_lines
 
     ## Returns distances of the lines
-    #todo: hasnt transformed to obj, check if it is working
-    def line_dist(lines):
-        if len(lines)==5:
-            dist_dict ={}
-            for i in range(len(lines)):
-                for j in range(i+1, len(lines)):
+    def line_dist(self, give_information = False):
+        if len(self.lines)==5:
+            self.dist_dict ={}
+            for i in range(5):
+                for j in range(i+1, 5):
                     d_ij = f'{line_names[i]} - {line_names[j]}'
-                    distance = lines[j]-lines[i]
-                    dist_dict[d_ij] = distance
+                    distance = self.lines[j] - self.lines[i]
+                    self.dist_dict[d_ij] = distance
             
-            return dist_dict
-        else:
+        elif give_information:
             print('The number of lines is not 5')
 
     ## defines the bars reliability of position
@@ -728,6 +756,11 @@ class spep:
             print("Matrix is not transformable")
 
     def show_graph(self,bar):
+        if hasattr(self,'graphs'):
+            pass
+        else:
+            self.find_graphs()
+
         bar_height = range(self.bar)
 
         if 'all' in bar:
@@ -751,7 +784,7 @@ class spep:
         if 'test' in bar:
             plt.subplot(1,lenght,count)
             count +=1
-            plt.plot(255-self.graphs['test'],bar_height[::-1])
+            plt.plot(self.graphs['test'],bar_height[::-1])
             plt.title(f'test')
             plt.xticks(np.arange(0,255,50))
             plt.xlabel('value')
@@ -761,7 +794,7 @@ class spep:
         if 'gamma' in bar:
             plt.subplot(1,lenght,count)
             count +=1
-            plt.plot(255-self.graphs['gamma'],bar_height[::-1])
+            plt.plot(self.graphs['gamma'],bar_height[::-1])
             plt.title(f'gamma')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
@@ -771,7 +804,7 @@ class spep:
         if 'alpha' in bar:
             plt.subplot(1,lenght,count)
             count +=1
-            plt.plot(255-self.graphs['alpha'],bar_height[::-1])
+            plt.plot(self.graphs['alpha'],bar_height[::-1])
             plt.title(f'alpha')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
@@ -781,7 +814,7 @@ class spep:
         if 'mu' in bar:
             plt.subplot(1,lenght,count)
             count +=1
-            plt.plot(255-self.graphs['mu'],bar_height[::-1])
+            plt.plot(self.graphs['mu'],bar_height[::-1])
             plt.title(f'mu')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
@@ -791,7 +824,7 @@ class spep:
         if 'kappa' in bar:
             plt.subplot(1,lenght,count)
             count +=1
-            plt.plot(255-self.graphs['kappa'],bar_height[::-1])
+            plt.plot(self.graphs['kappa'],bar_height[::-1])
             plt.title(f'kappa')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
@@ -801,7 +834,7 @@ class spep:
         if 'lambda' in bar:
             plt.subplot(1,lenght,count)
             count +=1
-            plt.plot(255-self.graphs['lambda'],bar_height[::-1])
+            plt.plot(self.graphs['lambda'],bar_height[::-1])
             plt.title(f'lambda')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
