@@ -17,6 +17,7 @@ directory = 'datasets'
 count_all = 0
 count_valid = 0
 distance_ratio = {}
+distance = {}
 for root, dir, files in os.walk(directory):
     for file in files:
         file_dir = os.path.join(root,file)
@@ -27,7 +28,7 @@ for root, dir, files in os.walk(directory):
             obj = spep(file_dir)
 
             obj.evaluate()
-            obj.find_lines('dent','smooth',smoothRange= 5, dentRange= 10)
+            obj.find_lines(['all'],smoothRange= 5, dentRange= 10, use_combinations= True)
             
             if len(obj.lines) == 5:
                 count_valid += 1
@@ -43,8 +44,18 @@ for root, dir, files in os.walk(directory):
                                 distance_ratio[f'{key1}:{key2}'] =[]
                                 distance_ratio[f'{key1}:{key2}'].append(value1/value2)
 
+                for key,value in obj.dist_dict.items():
+                    if key in distance:
+                        distance_ratio[key].append(value)
+                    else:
+                        distance[key] = list
+                        distance[key].append(value)
+
 # Writing the findings
 print('valid images: ',round(100*count_valid/count_all,2),'%')
-#for key,value in distance_ratio.items():
-    #print('--------------------\n''mean ', key,' = ', np.mean(value),'\n')
-    #print('std ', key,' = ', np.std(value),'\n--------------------\n')
+print(spep.bar)
+print(f'{key}: {value}\n' for key, value in distance.items())
+print('-----------------------')
+for key,value in distance_ratio.items():
+    print('--------------------\n''mean ', key,' = ', np.mean(value),'\n')
+    print('std ', key,' = ', np.std(value),'\n--------------------\n')

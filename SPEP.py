@@ -3,6 +3,7 @@ from PIL import Image
 from skimage import filters
 from copy import deepcopy
 import matplotlib.pyplot as plt
+import itertools
 
 line_names ={
             0 : 'albumin',
@@ -485,15 +486,15 @@ class spep:
     ## Finding the middle point of the lines by searching peaks of the bar
     def find_peak_sharp(self):
         i=0
-        while i < (len(self.bar) -1):
+        while i < (self.bar -1):
             if (self.delta_row[i] >= 0) and (self.delta_row[i] <= 1):
-                for j in range(i, len(self.bar) -1):
+                for j in range(i, self.bar -1):
                     if self.delta_row[j] < 0:
                         self.lines.append(j-1)
                         i = j+1
                         break
                     else:
-                        i = len(self.bar)
+                        i = self.bar
             else:
                 i += 1    
 
@@ -564,13 +565,12 @@ class spep:
 
     ## finds lines
     #todo: need to take all combinations of these functions, and if still there are difference, maybe different combinations find different bar lines. so also need to compare combinations findings (not the number of findings but difference of findings)
-    def find_lines(self,*function, smoothRange = 5, dentRange = 10, combine_lines = True, increase_spec = True):
+    def line_method(self,function, smoothRange = 5, dentRange = 10, combine_lines = True, increase_spec = True):
         
-        if hasattr(self,'delta_row'):
-            pass
-        else:
-            self.derivative('subject')
-        
+        if 'all' in function:
+            function = ['sharp','sharp_v2','sharp_v3','smooth','dent']
+
+        self.derivative('subject')
         self.lines = []
 
         if 'sharp' in function:
@@ -607,6 +607,26 @@ class spep:
             if combine_lines:
                 self.line_cleaner()
 
+    def find_lines(self,function: list, smoothRange = 5, dentRange = 10, combine_lines = True, increase_spec = True, use_combinations = False):
+
+        if 'all' in function:
+            function = ['smooth','dent','sharp_v2','sharp_v3','sharp']
+
+        if use_combinations:
+
+            combinations = []
+            for r in range(1 , len(function)+1):
+                for combination in itertools.combinations(function,r):
+                    combinations.append(combination)
+
+            for combination in combinations:
+                self.line_method(function = combination, smoothRange = smoothRange, dentRange = dentRange, combine_lines = combine_lines, increase_spec = increase_spec)
+                if len(self.lines) == 5:
+                    break
+        
+        else:
+            self.line_method(function = function, smoothRange = smoothRange, dentRange = dentRange, combine_lines = combine_lines, increase_spec = increase_spec)
+            
 
 
     ### Eliminate close lines 
