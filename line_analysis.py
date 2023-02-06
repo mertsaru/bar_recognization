@@ -46,13 +46,13 @@ for root, dir, files in os.walk(directory):
 
                 for key,value in obj.dist_dict.items():
                     if key in distance:
-                        distance_ratio[key].append(value)
+                        distance[key].append(value)
                     else:
-                        distance[key] = list
+                        distance[key] = list()
                         distance[key].append(value)
 
 # Writing the findings
-print('valid images: ',round(100*count_valid/count_all,2),'%')
+print('#images: ', count_all, 'valid images: ',round(100*count_valid/count_all,2),'%')
 print(spep.bar)
 print(f'{key}: {value}\n' for key, value in distance.items())
 print('-----------------------')
