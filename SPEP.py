@@ -618,7 +618,7 @@ class spep:
             for r in range(1 , len(function)+1):
                 for combination in itertools.combinations(function,r):
                     combinations.append(combination)
-
+            combinations = combinations[::-1]
             for combination in combinations:
                 self.line_method(function = combination, smoothRange = smoothRange, dentRange = dentRange, combine_lines = combine_lines, increase_spec = increase_spec)
                 if len(self.lines) == 5:
