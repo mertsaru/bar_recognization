@@ -570,7 +570,7 @@ class spep:
         if 'all' in function:
             function = ['sharp','sharp_v2','sharp_v3','smooth','dent']
 
-        self.derivative('subject')
+        self.derivative('grayscale')
         self.lines = []
 
         if 'sharp' in function:
@@ -589,7 +589,7 @@ class spep:
 
         if (increase_spec) and (len(self.lines) != 5):
             
-            self.derivative('grayscale')
+            self.derivative('subject')
 
             self.lines = []
 
