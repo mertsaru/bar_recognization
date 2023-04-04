@@ -800,12 +800,13 @@ class spep:
         if 'lambda' in bar:
             lenght +=1
         
+        plt.figure(figsize=(15,5))
         count = 1
         if 'test' in bar:
             plt.subplot(1,lenght,count)
             count +=1
             plt.plot(self.graphs['test'],bar_height[::-1])
-            plt.title(f'test')
+            plt.title(f'SP')
             plt.xticks(np.arange(0,255,50))
             plt.xlabel('value')
             plt.axis([0,255,0,self.bar])
@@ -815,7 +816,7 @@ class spep:
             plt.subplot(1,lenght,count)
             count +=1
             plt.plot(self.graphs['gamma'],bar_height[::-1])
-            plt.title(f'gamma')
+            plt.title(f'ɣ')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
             plt.axis([0,255,0,self.bar])
@@ -825,7 +826,7 @@ class spep:
             plt.subplot(1,lenght,count)
             count +=1
             plt.plot(self.graphs['alpha'],bar_height[::-1])
-            plt.title(f'alpha')
+            plt.title(f'ɑ')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
             plt.axis([0,255,0,self.bar])
@@ -835,7 +836,7 @@ class spep:
             plt.subplot(1,lenght,count)
             count +=1
             plt.plot(self.graphs['mu'],bar_height[::-1])
-            plt.title(f'mu')
+            plt.title(f'μ')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
             plt.axis([0,255,0,self.bar])
@@ -845,7 +846,7 @@ class spep:
             plt.subplot(1,lenght,count)
             count +=1
             plt.plot(self.graphs['kappa'],bar_height[::-1])
-            plt.title(f'kappa')
+            plt.title(f'ĸ')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
             plt.axis([0,255,0,self.bar])
@@ -855,14 +856,15 @@ class spep:
             plt.subplot(1,lenght,count)
             count +=1
             plt.plot(self.graphs['lambda'],bar_height[::-1])
-            plt.title(f'lambda')
+            plt.title(f'λ')
             plt.xlabel('value')
             plt.xticks(np.arange(0,255,50))
             plt.axis([0,255,0,self.bar])
             plt.yticks([])
 
-        plt.suptitle(self.name)
-        plt.show()
+        #plt.suptitle(self.name)
+        #plt.show()
+        plt.savefig("graph.png")
 
     #todo: need to be reworked. check if everything is okay or not
     def draw_lines(self,img = 'orj'):
