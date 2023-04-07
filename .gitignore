@@ -1,23 +1,13 @@
 # Cache
 __pycache__
 .idea
+.vscode
 
 # Images
 datasets
+images
 *jpg
 *png
 
-# Skip notes
-*info*
-Notes.txt
-TODO.*
-
-# Test and old codes
-*test*
-*old*
-
-# Referance folder
-ref
-
-# images
-images
+#Old Codes
+OldCodes
