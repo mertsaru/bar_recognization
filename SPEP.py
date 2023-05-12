@@ -517,9 +517,6 @@ class spep:
                 i += 1
 
     def find_peak_smooth(self, smoothRange):
-        '''Description smoothRange:
-        smoothRange chooses how far we want the function monotonically increasing or decreasing.
-        '''
         i = 0
         while i < len(self.delta_row) -smoothRange:
             if (self.delta_row[i] >0) and (self.delta_row[i] <1): # sign i >= 0
@@ -564,7 +561,6 @@ class spep:
                 i +=1
 
     ## finds lines
-    #todo: need to take all combinations of these functions, and if still there are difference, maybe different combinations find different bar lines. so also need to compare combinations findings (not the number of findings but difference of findings)
     def line_method(self,function, smoothRange = 5, dentRange = 10, combine_lines = True, increase_spec = True):
         
         if 'all' in function:
@@ -626,16 +622,9 @@ class spep:
         
         else:
             self.line_method(function = function, smoothRange = smoothRange, dentRange = dentRange, combine_lines = combine_lines, increase_spec = increase_spec)
-            
-
 
     ### Eliminate close lines 
-    #* Idea
     def line_cleaner(self, range =10):
-        '''Idea:
-        I would suggest to find a static-dynamic range. depends on the bar lenght. like 1/5th of the bar or smthg
-        if range = None
-            range = self.bar/10'''
         ### getting rid of duplicate lines
         lines = self.lines
         lines.sort()
@@ -677,90 +666,6 @@ class spep:
             
         elif give_information:
             print('The number of lines is not 5')
-
-    ## defines the bars reliability of position
-    #! not working
-    def bar_reliability(img_mx, lines, error_function ='linear', max_dist =14):
-        '''Parameters:
-            error_function:
-                has 2 values: linear, tanh(gauss)
-                describes which function we are using to calculate the error
-            max_dist:
-                describes how far we want to calculate our error. If the difference between top(bottom) of the line to the end,
-                it chooses that distance instead
-        '''
-
-        '''!Cleaning!
-        If it would be a class, I wouldn't need to re-calculate row_vals and 
-        it would be easier to implement lines, img_mx, img_name
-        and it would be easier to store reliability of the lines
-        '''
-        '''Cleaning
-        you are repeating line_names with distances, put them into parameters.'''
-        line_name ={
-            0 : 'albumin',
-            1 : 'alpha1',
-            2 : 'alpha2',
-            3 : 'beta',
-            4 : 'gamma'
-            }    
-
-        row_vals = img_mx.mean(axis=1)
-        col_len = len(row_vals)
-        
-        # Finding the distance value
-        if (lines[0] < max_dist) or (lines[-1] +max_dist > col_len -1): #if line ±n passes the border.
-            distance = min(lines[0], col_len - lines[-1] -1)
-        else:
-            distance = max_dist
-
-        '''!!IDEA!!
-        Maybe it would be better if lines are too close to top or bottom,
-        we can decrease it's reliability to a constant or with a multiplier.
-
-        If it is not bright enough, we can decrease the reliability
-        '''
-        # Finding all the reliability
-        validity_dict = {}
-        for i in range(len(lines)):
-            brightness = row_vals[lines[i]]
-            # Finding individual error
-            err = 0
-            for dist in range(1,distance+1):
-                new_err = abs(row_vals[lines[i] -dist] - row_vals[lines[i] +dist])
-                err += new_err
-            
-            '''!Idea
-            dividing 255 is taking every individual bar into same ground,
-            but not all bars have same luminosity, error detection would not be equal
-            try dividing into the line color
-            
-            Somehow better performance, works good with large max_dist
-            but not enough, also error gets out of the 0-1 boundary
-
-            Since you are using luminosity, dont use the amplified version,
-            since amplified version is not correct interpretation.
-            Use original grayscale version.
-            '''
-            '''Summary: mean error
-            We are dividing error into distance to take the mean of the error,
-            then we also divide it to 255 to normalize the error between 0-1,
-            after that we also divide the error to the luminosity of the given line, since all lines are not in same luminosity, so the differences would be greater for lines that have bigger luminosity than others.'''
-            mean_error = err /(brightness*255*distance) 
-            
-            # Turn error into reliability
-            '''!Small error: Gauss
-            not reliable
-            erf(gauss) function is <~1 when it is at 1, we are not calculating error fully'''
-            if (error_function == 'linear'):
-                reliability = 1- mean_error
-                
-            #elif (error_function == 'gauss') or (error_function == 'tanh') or (error_function == 'erf'):
-            #    reliability = 1-erf(mean_error)
-            # Add reliability to the dict
-                validity_dict[line_name[i]] = reliability        
-        
-        return validity_dict
 
     # Visualization
     ## Shows the bar with the approx. lenght drawn
@@ -862,11 +767,9 @@ class spep:
             plt.axis([0,255,0,self.bar])
             plt.yticks([])
 
-        #plt.suptitle(self.name)
-        #plt.show()
-        plt.savefig("graph.png")
+        plt.suptitle(self.name)
+        plt.show()
 
-    #todo: need to be reworked. check if everything is okay or not
     def draw_lines(self,img = 'orj'):
         if img == 'orj': # orj grayscale fullscale 
             img_viz = deepcopy(self.img_orj)
